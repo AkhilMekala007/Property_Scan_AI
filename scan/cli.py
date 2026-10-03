@@ -498,13 +498,30 @@ def cmd_run(args: argparse.Namespace) -> int:
     from scan.qc import write_reports
     from scan.stitch.render import render_floor_plan
 
+    from scan.core.types import Tier
+    from scan.ingest.detect import detect_capture
+
     started = time.perf_counter()
     try:
-        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+        detected = detect_capture(args.capture)
+        if detected.tier is Tier.LIDAR:
+            fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+            res = run_pipeline(fs, upto="damage", drift=not args.no_drift_fix)
+        else:  # video / photos: separate reconstructions, placed through doors (scan/fragments.py)
+            from scan import fragments as F
+
+            if detected.tier is Tier.VIDEO:
+                meta, parts = F.video_fragments(detected.video_path, detected.capture_id, Path(args.cache),
+                                                args.device)
+            else:
+                meta, parts = F.photo_fragments(detected.room_dirs, detected.capture_id, Path(args.cache),
+                                                args.device)
+            meta.warnings[:0] = detected.warnings
+            res = F.run_capture(meta, parts)
+            fs = res.frameset
     except (CaptureFormatError, NotImplementedError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    res = run_pipeline(fs, upto="damage", drift=not args.no_drift_fix)
     result = build_result(res, time.perf_counter() - started)
     out_dir = Path(args.out) / fs.meta.capture_id
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -542,6 +559,31 @@ def cmd_schema(args: argparse.Namespace) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(json_schema(), indent=2) + chr(10), encoding="utf-8")
     print(f"schema written to {out}")
+    return 0
+
+
+def cmd_bench(args: argparse.Namespace) -> int:
+    """Accuracy vs laser ground truth (and the consumer app) for one capture's result.json."""
+    from scan.bench import benchmark, to_json, to_markdown
+
+    rep = benchmark(Path(args.result), Path(args.truth), args.capture)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / f"{args.capture}.md").write_text(to_markdown(rep), encoding="utf-8")
+    (out / f"{args.capture}.json").write_text(to_json(rep), encoding="utf-8")
+    s = rep.summary
+    print(f"BENCH  {rep.capture}  ({rep.tier} tier)   rows {len(rep.rows)}, missed {s['missed']}")
+    for kind in ("wall", "ceiling", "opening"):
+        k = s[kind]
+        if k["total"]:
+            print(f"  {kind:8s} gate passed {k['passed']}/{k['total']}  "
+                  f"median |error| {s['median_abs_error_m'].get(kind, float('nan')) * 100:.1f} cm")
+    print(f"  interval coverage {s['interval_coverage']}  (target 0.90)")
+    if "head_to_head" in s:
+        h = s["head_to_head"]
+        print(f"  head-to-head beat/tie {h['beat_or_tie']}/{h['total']} = {h['rate']:.0%}  "
+              f"({'PASS' if h['pass'] else 'FAIL'}, need >= 70%)")
+    print(f"report  {out / (args.capture + '.md')}")
     return 0
 
 
@@ -672,6 +714,13 @@ def build_parser() -> argparse.ArgumentParser:
     sc = sub.add_parser("schema", help="write the published JSON schema of result.json")
     sc.add_argument("--out", default="schema/result.schema.json")
     sc.set_defaults(func=cmd_schema)
+
+    bn = sub.add_parser("bench", help="accuracy of a result.json against laser ground truth")
+    bn.add_argument("result", help="path to result.json")
+    bn.add_argument("truth", help="ground-truth YAML (template: bench/ground_truth/TEMPLATE.yaml)")
+    bn.add_argument("--capture", required=True, help="capture name used in the YAML mapping, e.g. lidar_flat")
+    bn.add_argument("--out", default="bench/reports")
+    bn.set_defaults(func=cmd_bench)
     return parser
 
 

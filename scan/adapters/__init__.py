@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from scan.adapters.base import Adapter
 from scan.adapters.stray import StrayScannerAdapter
+from scan.adapters.video import VideoAdapter
 
 
 class _NotYetImplemented:
@@ -18,7 +19,7 @@ class _NotYetImplemented:
 
 _ADAPTERS: dict[str, Adapter] = {
     "stray_scanner": StrayScannerAdapter(),
-    "video_file": _NotYetImplemented("video_file"),
+    "video_file": VideoAdapter(),
     "photo_folders": _NotYetImplemented("photo_folders"),
 }
 

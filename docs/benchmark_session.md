@@ -33,7 +33,15 @@ Measure with these rules (they match how the pipeline measures):
 | **Window sill** | Floor to the bottom of the wall opening. |
 | **Repeat room** | Measure it **twice** (walls and ceiling), independently. |
 
-Fill `bench/ground_truth/<capture name>.yaml` (template: `bench/ground_truth/TEMPLATE.yaml`) or just send a photo of the sketch with the numbers.
+Either fill `data/raw/benchmark/ground_truth.yaml` (copy `bench/ground_truth/TEMPLATE.yaml`; leave `mapping:` empty) or write the numbers on the sketch and photograph it (`sketch.jpg`). Wall labels in the sketch:
+
+```
+              C
+       ┌─────────────┐
+     B │  bedroom1   │ D        A = wall with the room's entrance door,
+       └───[door]────┘          then B, C, D clockwise (seen from above)
+              A
+```
 
 ## 2. LiDAR scans with the 17 Pro (15 min)
 
@@ -44,7 +52,12 @@ Fill `bench/ground_truth/<capture name>.yaml` (template: `bench/ground_truth/TEM
 
 ## 3. Polycam with the 17 Pro (15 min)
 
-For each of the two chosen rooms: Polycam → **Room** mode (LiDAR) → scan → save. Then export what the free tier allows (floor plan image / PDF with dimensions, or a 3D file). Note the **Polycam app version** (Settings → About). Name the exports `polycam_<room>`.
+Polycam makes **its own live scan** — it does not use the Stray Scanner recordings. For each of the two chosen rooms: Polycam → **Room** mode (LiDAR) → scan that room → save (3–5 min per room).
+
+Then, into `data/raw/benchmark/polycam_<room>/`:
+1. **Export** whatever the free tier allows (floor plan image / PDF with dimensions, or a 3D file).
+2. **Screenshots** of Polycam's measurement screens (room dimensions, ceiling height, door widths) — these still give its numbers if the free export is limited.
+3. The **Polycam app version** (Settings → About): write it on the sketch or in the `competitor:` section of the ground-truth file.
 
 ## 4. Video with your iPhone 15 (10 min)
 

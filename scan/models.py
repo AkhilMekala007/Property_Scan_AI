@@ -43,6 +43,13 @@ MODELS: dict[str, ModelSpec] = {
             purpose="C4 surface labels, accurate variant",
         ),
         ModelSpec(
+            key="depth-anything-v2-metric-indoor-small",
+            repo_id="depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf",
+            revision="main",
+            licence="Apache-2.0",
+            purpose="Video / photo tiers: metric depth per image",
+        ),
+        ModelSpec(
             key="owlv2-base",
             repo_id="google/owlv2-base-patch16-ensemble",
             revision="main",

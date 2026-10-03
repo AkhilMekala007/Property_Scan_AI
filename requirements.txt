@@ -15,5 +15,9 @@ pydantic==2.13.5  # C13 output contract
 # Geometry (C5 drift correction: ICP + pose graph)
 open3d==0.20.0
 
+# Video / photo tiers: structure from motion, iPhone HEIC photos
+pycolmap==4.2.1
+pillow-heif==1.8.0
+
 # Dev / tests
 pytest==9.1.1

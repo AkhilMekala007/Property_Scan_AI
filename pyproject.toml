@@ -20,6 +20,8 @@ dependencies = [
     "scipy>=1.11",
     "PyYAML>=6",
     "pydantic>=2.5",
+    "pycolmap>=3.11",
+    "pillow-heif>=0.18",
 ]
 
 [project.optional-dependencies]
