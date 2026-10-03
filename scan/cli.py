@@ -55,6 +55,45 @@ def cmd_inspect(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_qc(args: argparse.Namespace) -> int:
+    from scan.qc import run_qc, write_reports
+
+    started = time.perf_counter()
+    config = AdapterConfig(device_model=args.device)
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=config)
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    report = run_qc(fs).report
+    elapsed = time.perf_counter() - started
+    json_path, md_path = write_reports(report, Path(args.out) / fs.meta.capture_id)
+
+    c = report.coverage
+    drops = report.drop_counts()
+    print(f"QC  {report.capture_id}  ({report.tier})   quality {report.quality_score:.2f}")
+    print(f"kept {report.n_frames_kept} / {report.n_frames_in} keyframes"
+          + (f"   dropped: {', '.join(f'{n} {r}' for r, n in drops.items())}" if drops else ""))
+    if report.n_rgb_blurry_kept:
+        print(f"{report.n_rgb_blurry_kept} kept frames have blurry images (used for geometry only)")
+    if c.floor_seen is not None:
+        line = (f"floor seen {'yes' if c.floor_seen else 'NO'} ({c.floor_area_m2:.1f} m2)   "
+                f"ceiling seen {'yes' if c.ceiling_seen else 'NO'} ({c.ceiling_area_m2 or 0:.1f} m2)")
+        if c.camera_height_m is not None:
+            line += f"   camera height {c.camera_height_m:.2f} m"
+        print(line)
+    print(f"median brightness {report.median_brightness:.0f}/255   time {elapsed:.1f} s")
+    errors = [i for i in report.issues if i.severity == "error"]
+    print(f"\nissues: {len(errors)} error(s), {len(report.issues) - len(errors)} other")
+    icons = {"error": "x", "warning": "!", "info": "i"}
+    for issue in report.issues:
+        print(f" [{icons[issue.severity]}] {issue.code}: {issue.message}")
+        if issue.fix:
+            print(f"     fix: {issue.fix}")
+    print(f"\nreport  {md_path}\n        {json_path}")
+    return 1 if report.has_errors else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="scan", description="Property Scan AI pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -66,6 +105,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", default="outputs", help="output folder for debug images")
     p.add_argument("--topdown", action="store_true", help="also save a top-down debug render")
     p.set_defaults(func=cmd_inspect)
+
+    q = sub.add_parser("qc", help="quality-check a capture and write qc_report.md/json")
+    q.add_argument("capture", help="capture folder")
+    q.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    q.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    q.add_argument("--out", default="outputs", help="output folder for reports")
+    q.set_defaults(func=cmd_qc)
     return parser
 
 
