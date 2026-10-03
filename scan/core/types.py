@@ -89,10 +89,17 @@ class Frame:
     room_hint: str | None = None  # photo tier: folder name
     depth_size: tuple[int, int] | None = None  # (width, height) of depth maps
     rgb_ok: bool = True  # False when QC found the image blurry; depth may still be fine
+    label_size: tuple[int, int] | None = None  # (width, height) of label maps, set by C4
     _rgb: ArrayLoader | None = field(default=None, repr=False)
     _depth: ArrayLoader | None = field(default=None, repr=False)
     _confidence: ArrayLoader | None = field(default=None, repr=False)
     _depth_sigma: ArrayLoader | None = field(default=None, repr=False)
+    _labels: ArrayLoader | None = field(default=None, repr=False)
+    _label_conf: ArrayLoader | None = field(default=None, repr=False)
+
+    @property
+    def has_labels(self) -> bool:
+        return self._labels is not None
 
     @property
     def has_depth(self) -> bool:
@@ -121,6 +128,14 @@ class Frame:
     def depth_sigma(self) -> np.ndarray | None:
         """HxW float32 one-sigma depth uncertainty in metres, NaN where unusable."""
         return None if self._depth_sigma is None else self._depth_sigma()
+
+    def labels(self) -> np.ndarray | None:
+        """HxW uint8 surface class per pixel (``scan.semantics.Surface``), sensor orientation."""
+        return None if self._labels is None else self._labels()
+
+    def label_conf(self) -> np.ndarray | None:
+        """HxW float32 probability of the chosen surface class, 0-1."""
+        return None if self._label_conf is None else self._label_conf()
 
 
 @dataclass

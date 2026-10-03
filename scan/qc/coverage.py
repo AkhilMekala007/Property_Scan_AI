@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from scan.core.geometry import organised_points_normals
 from scan.core.types import Frame
 from scan.qc.report import Coverage, QcConfig
 
@@ -20,28 +21,18 @@ UP_PITCH_DEG = 30.0
 
 
 def _organised_points(frame: Frame) -> tuple[np.ndarray, np.ndarray] | None:
-    """World points and world normals on an organised grid, horizontal-surface pixels only."""
+    """World points and world normals of horizontal-surface pixels."""
     depth = frame.depth()
     if depth is None or frame.T_world_cam is None:
         return None
-    K = frame.depth_intrinsics
-    v, u = np.mgrid[0 : depth.shape[0] : DEPTH_STRIDE, 0 : depth.shape[1] : DEPTH_STRIDE]
-    z = depth[::DEPTH_STRIDE, ::DEPTH_STRIDE].astype(np.float64)
     conf = frame.confidence()
-    if conf is not None:
-        z = np.where(conf[::DEPTH_STRIDE, ::DEPTH_STRIDE] == 2, z, np.nan)
-    P = np.stack([(u - K.cx) * z / K.fx, (v - K.cy) * z / K.fy, z], axis=-1)
-
-    dx = P[:-1, 1:] - P[:-1, :-1]
-    dy = P[1:, :-1] - P[:-1, :-1]
-    n = np.cross(dx, dy)
-    norm = np.linalg.norm(n, axis=-1, keepdims=True)
-    with np.errstate(invalid="ignore", divide="ignore"):
-        n = n / norm
-    pts = P[:-1, :-1]
-    R, t = frame.T_world_cam[:3, :3], frame.T_world_cam[:3, 3]
-    n_world = n @ R.T
-    p_world = pts @ R.T + t
+    p_world, n_world = organised_points_normals(
+        depth,
+        frame.depth_intrinsics,
+        frame.T_world_cam,
+        stride=DEPTH_STRIDE,
+        valid=conf == 2 if conf is not None else None,
+    )
     ok = np.all(np.isfinite(p_world), axis=-1) & np.all(np.isfinite(n_world), axis=-1)
     horizontal = ok & (np.abs(n_world[..., 1]) > HORIZONTAL_COS)
     return p_world[horizontal], n_world[horizontal]
