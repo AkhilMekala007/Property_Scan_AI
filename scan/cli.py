@@ -326,14 +326,8 @@ def cmd_openings(args: argparse.Namespace) -> int:
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
-    from scan.measure import measure_rooms
-    from scan.openings import find_openings
-    from scan.qc import run_qc
-    from scan.rooms import segment_rooms
-    from scan.semantics import run_semantics
-    from scan.stitch import stitch, write_plan
+    from scan.stitch import write_plan
     from scan.stitch.render import render_floor_plan
-    from scan.structure import run_structure
 
     started = time.perf_counter()
     try:
@@ -341,14 +335,10 @@ def cmd_plan(args: argparse.Namespace) -> int:
     except (CaptureFormatError, NotImplementedError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    qc = run_qc(fs)
-    cov = qc.report.coverage
-    labelled = run_semantics(qc.frameset).frameset
-    model = run_structure(labelled, floor_hint_y=cov.floor_y, ceiling_seen=cov.ceiling_seen)
-    layout = segment_rooms(model, fs.trajectory)
-    rooms, _ = measure_rooms(model, layout)
-    openings = find_openings(model, layout, rooms, labelled)
-    plan = stitch(rooms, openings, layout)
+    from scan.pipeline import run_pipeline
+
+    res = run_pipeline(fs, drift=not args.no_drift_fix)
+    plan, layout = res.plan, res.layout
     elapsed = time.perf_counter() - started
 
     out_dir = Path(args.out) / fs.meta.capture_id
@@ -358,6 +348,13 @@ def cmd_plan(args: argparse.Namespace) -> int:
 
     print(f"PLAN  {plan.capture_id}   {len(plan.rooms)} rooms   net {plan.net_area_m2:.2f} m2   "
           f"footprint {plan.footprint_m2:.2f} m2   time {elapsed:.1f} s")
+    d = res.drift
+    if d.enabled:
+        print(f"drift fix: {d.loops_accepted} loop closure(s) of {d.loops_tested} tested, "
+              f"max correction {d.max_translation_m * 100:.1f} cm / {d.max_yaw_deg:.2f} deg"
+              + (f"  ({d.note})" if d.note else ""))
+    else:
+        print("drift fix: OFF")
     print(f"shared walls {len(plan.shared_walls)}   median wall thickness "
           f"{plan.diagnostics['median_wall_thickness_m'] * 100:.1f} cm")
     print(f"openings {len(plan.openings)} "
@@ -380,6 +377,70 @@ def cmd_plan(args: argparse.Namespace) -> int:
         print(f"  {o.kind:8s} {where:28s} width {o.width_m:.3f} m +-{o.width_sigma_m * 1000:4.1f} mm{both}")
     print(f"\njson   {json_path}\nplan   {img_path}")
     return 0 if not plan.overlaps else 1
+
+
+def cmd_drift(args: argparse.Namespace) -> int:
+    """Drift ablation: the whole pipeline with correction off and on, compared side by side."""
+    import json
+
+    from scan.pipeline import consistency_metrics, run_pipeline
+    from scan.stitch.render import render_floor_plan
+
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    started = time.perf_counter()
+    off = run_pipeline(fs, drift=False)
+    on = run_pipeline(fs, drift=True)
+    m_off, m_on = consistency_metrics(off), consistency_metrics(on)
+    out_dir = Path(args.out) / fs.meta.capture_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "drift_ablation.json").write_text(json.dumps(
+        {"off": m_off, "on": m_on, "drift_report": on.drift.to_dict()}, indent=2), encoding="utf-8")
+    render_floor_plan(off.plan, off.layout.floor_map.frame, out_dir / "floor_plan_drift_off.png",
+                      title=f"{fs.meta.capture_id}  drift correction OFF")
+    render_floor_plan(on.plan, on.layout.floor_map.frame, out_dir / "floor_plan_drift_on.png",
+                      title=f"{fs.meta.capture_id}  drift correction ON")
+    overlay = _footprint_overlay(off, on, out_dir / "drift_ablation.png")
+
+    d = on.drift
+    print(f"DRIFT ABLATION  {fs.meta.capture_id}   time {time.perf_counter() - started:.1f} s")
+    print(f"correction: {d.loops_accepted} loop closure(s) accepted of {d.loops_tested} tested, "
+          f"{d.loops_pruned} pruned, max {d.max_translation_m * 100:.1f} cm / {d.max_yaw_deg:.2f} deg"
+          + (f"  ({d.note})" if d.note else ""))
+    print()
+    print(f"  {'metric':38s} {'OFF':>10s} {'ON':>10s}")
+    for k in m_off:
+        print(f"  {k:38s} {str(m_off[k]):>10s} {str(m_on[k]):>10s}")
+    print()
+    print(f"json     {out_dir / 'drift_ablation.json'}")
+    print(f"overlay  {overlay}")
+    return 0
+
+
+def _footprint_overlay(off, on, out_path):
+    """Room outlines from both runs on one canvas in world coordinates: red = off, green = on."""
+    import cv2
+    import numpy as np
+
+    polys_off = [np.array(r.corners_xz) for r in off.plan.rooms]
+    polys_on = [np.array(r.corners_xz) for r in on.plan.rooms]
+    allp = np.concatenate(polys_off + polys_on)
+    lo = allp.min(axis=0) - 0.5
+    hi = allp.max(axis=0) + np.array([0.5, 1.0])
+    ppm = 100
+    w, h = (np.ceil((hi - lo) * ppm)).astype(int)
+    img = np.full((h, w, 3), 255, np.uint8)
+    for polys, colour, thick in ((polys_off, (60, 60, 220), 3), (polys_on, (40, 160, 40), 1)):
+        for p in polys:
+            pts = np.round((p - lo) * ppm).astype(np.int32)
+            cv2.polylines(img, [pts], True, colour, thick, cv2.LINE_AA)
+    cv2.putText(img, "red (thick) = drift correction OFF   green (thin) = ON", (10, h - 15),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+    cv2.imwrite(str(out_path), img)
+    return out_path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -447,7 +508,15 @@ def build_parser() -> argparse.ArgumentParser:
     pl.add_argument("--device", help="iPhone model, when the capture files don't record it")
     pl.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
     pl.add_argument("--out", default="outputs", help="output folder")
+    pl.add_argument("--no-drift-fix", action="store_true", help="use ARKit poses as-is (for the ablation)")
     pl.set_defaults(func=cmd_plan)
+
+    dr = sub.add_parser("drift", help="drift ablation: full pipeline with correction off vs on")
+    dr.add_argument("capture", help="capture folder")
+    dr.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    dr.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    dr.add_argument("--out", default="outputs", help="output folder")
+    dr.set_defaults(func=cmd_drift)
     return parser
 
 

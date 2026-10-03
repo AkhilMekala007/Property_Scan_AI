@@ -18,7 +18,7 @@ class SegmentConfig:
     door_cut_m: float = 0.15  # floor this close to door-labelled voxels is cut when seeding
     neck_m: float = 0.30  # erosion radius: passages narrower than 2x this split rooms
     min_room_m2: float = 0.8
-    min_doorway_m: float = 0.4
+    min_doorway_m: float = 0.25  # rooms only touch through wall gaps; 0.4 was knife-edge (frames narrow contacts to ~0.4 m)
     corridor_aspect: float = 2.5
 
 
