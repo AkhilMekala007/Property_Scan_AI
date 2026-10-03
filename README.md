@@ -89,6 +89,14 @@ exits 1 if rooms still overlap):
 scan plan path/to/capture --device "iPhone 15 Pro"
 ```
 
+Drift correction (pose graph with ICP loop closures) is on by default; `--no-drift-fix` uses
+ARKit poses as-is. The ablation runs both and compares them (writes `drift_ablation.json`,
+both floor plans and an overlay):
+
+```bash
+scan drift path/to/capture
+```
+
 ## Tests
 
 ```bash
