@@ -100,21 +100,32 @@ def _candidate_lines(layout: RoomLayout, rid: int, lines: list[WallLine]) -> lis
     so the stretch along any one room can be a small fraction of it.
     """
     frame, labels = layout.floor_map.frame, layout.labels
-    out = []
-    for line in lines:
+
+    def hits(line, direction):
         along = np.arange(line.span[0], line.span[1] + 1e-9, SAMPLE_M)
-        bordering = np.zeros(len(along), bool)
-        for d in (0.1, 0.2, 0.3):
-            off = line.coord + line.sign * d
+        found = np.zeros(len(along), bool)
+        for d in (0.1, 0.2, 0.3, 0.5):
+            off = line.coord + direction * d
             uv = (np.column_stack([np.full_like(along, off), along]) if line.axis == "u"
                   else np.column_stack([along, np.full_like(along, off)]))
             rc = _uv_to_cell(frame, uv)
             ok = frame.in_bounds(rc)
             hit = np.zeros(len(along), bool)
             hit[ok] = labels[rc[ok, 0], rc[ok, 1]] == rid
-            bordering |= hit
-        if bordering.sum() * SAMPLE_M >= MIN_BORDER_M:
-            out.append(line)
+            found |= hit
+        return found
+
+    out = []
+    for line in lines:
+        inward = hits(line, line.sign)
+        if inward.sum() * SAMPLE_M < MIN_BORDER_M:
+            continue
+        # The room must lie on the side the wall faces. The C6 region can leak a little past a
+        # partition, so a room merely touching the back of another room's wall face is rejected.
+        outward = hits(line, -line.sign)
+        if outward.sum() > 0.5 * inward.sum():
+            continue
+        out.append(line)
     return out
 
 
