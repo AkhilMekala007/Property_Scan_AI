@@ -96,17 +96,65 @@ def _sim3(A: np.ndarray, B: np.ndarray) -> tuple[float, np.ndarray, np.ndarray]:
     return s, R, ca - s * R @ cb
 
 
-def join_chunks(chunks: list[tuple[list[int], MultiViewResult]]) -> tuple[dict[int, np.ndarray], dict[int, float],
-                                                                           list[str]]:
+def _cloud(res: MultiViewResult, k: int, T: np.ndarray, s: float, stride: int = 4) -> np.ndarray:
+    """Frame k of a chunk as points in the joint frame (high-confidence pixels, every ``stride``-th)."""
+    d = res.depth[k][::stride, ::stride] * s
+    c = res.conf[k][::stride, ::stride]
+    K = res.K[k]
+    v, u = np.mgrid[0:res.depth.shape[1]:stride, 0:res.depth.shape[2]:stride]
+    ok = (d > 1e-6) & (c >= np.percentile(c, 40))
+    z = d[ok]
+    P = np.column_stack([(u[ok] - K[0, 2]) / K[0, 0] * z, (v[ok] - K[1, 2]) / K[1, 1] * z, z])
+    return P @ T[:3, :3].T + T[:3, 3]
+
+
+def _scaled(T: np.ndarray, s: float) -> np.ndarray:
+    T = T.copy()
+    T[:3, 3] *= s
+    return T
+
+
+def _icp_correction(src: np.ndarray, dst: np.ndarray, voxel: float) -> tuple[np.ndarray | None, float, float]:
+    """Rigid correction aligning src to dst (point-to-plane ICP, coarse to fine).
+
+    Returns (4x4 or None, fitness before, fitness after); fitness = share of src points within
+    1.5 voxels of dst. The correction is kept only when it clearly improves the fit.
+    """
+    import open3d as o3d
+
+    def pc(P):
+        q = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(P))
+        q = q.voxel_down_sample(voxel)
+        q.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=voxel * 4, max_nn=30))
+        return q
+
+    a, b = pc(src), pc(dst)
+    reg = o3d.pipelines.registration
+    before = reg.evaluate_registration(a, b, voxel * 1.5).fitness
+    T = np.eye(4)
+    for mult in (6.0, 3.0, 1.5):
+        r = reg.registration_icp(a, b, voxel * mult, T, reg.TransformationEstimationPointToPlane(),
+                                 reg.ICPConvergenceCriteria(max_iteration=40))
+        T = r.transformation
+    after = reg.evaluate_registration(a, b, voxel * 1.5, T).fitness
+    return (T if after > before + 0.02 else None), before, after
+
+
+def join_chunks(chunks: list[tuple[list[int], MultiViewResult]], icp: bool = True
+                ) -> tuple[dict[int, np.ndarray], dict[int, float], list[str]]:
     """Chain overlapping chunks into the first chunk's frame.
 
     Each chunk is (frame ids, result). Consecutive chunks share frames; the similarity transform
-    between chunks comes from the shared cameras' centres and viewing directions. Returns per
-    frame: pose in the joint frame, and the scale factor applied to that frame's chunk depth.
+    between chunks comes from the shared cameras' orientations, centres and depth maps. With
+    ``icp`` each new chunk is then aligned geometrically to the cloud of everything placed so far:
+    this uses all overlapping surfaces, not just the shared frames, and pulls the chain back when
+    the camera returns to an earlier room. Returns per frame: pose in the joint frame, and the
+    scale factor applied to that frame's chunk depth.
     """
     poses: dict[int, np.ndarray] = {}
     scales: dict[int, float] = {}
     depth_of: dict[int, np.ndarray] = {}
+    placed_pts: list[np.ndarray] = []
     notes = []
     s_prev, G_prev = 1.0, np.eye(4)
     prev_ids, prev_T = None, None
@@ -148,6 +196,16 @@ def join_chunks(chunks: list[tuple[list[int], MultiViewResult]]) -> tuple[dict[i
                 t = poses[i][:3, 3] - s * R @ res.T_world_cam[j][:3, 3]
             G = np.eye(4)
             G[:3, :3], G[:3, 3] = R, t
+            if icp and placed_pts:
+                src = np.concatenate([_cloud(res, k, G @ _scaled(res.T_world_cam[k], s), s)
+                                      for k in range(0, len(ids), 2)])
+                dst = np.concatenate(placed_pts)
+                voxel = float(np.median(np.concatenate([depth_of[i].ravel() for i in shared]))) * 0.02                     if shared else 0.02
+                corr, f0, f1 = _icp_correction(src, dst, voxel)
+                if corr is not None:
+                    G = corr @ G
+                notes.append(f"chunk {c}: geometric alignment fitness {f0:.2f} -> {f1:.2f}"
+                             + ("" if corr is not None else " (kept the frame-based join)"))
         for k, i in enumerate(ids):
             if i in poses:
                 continue
@@ -156,5 +214,7 @@ def join_chunks(chunks: list[tuple[list[int], MultiViewResult]]) -> tuple[dict[i
             poses[i] = G @ T
             scales[i] = s
             depth_of[i] = res.depth[k] * s  # in joint units
+            if icp and k % 2 == 0:
+                placed_pts.append(_cloud(res, k, poses[i], s, stride=6))
         prev_ids, s_prev = ids, s
     return poses, scales, notes

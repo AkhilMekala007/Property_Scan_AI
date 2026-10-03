@@ -290,7 +290,7 @@ def _frames_multiview(mv, images: list[Path], metric: list[np.ndarray], indices:
 
 
 def video_fragments_da3(mv, video: Path, capture_id: str, cache_root: Path, device: str | None,
-                        cfg: VideoConfig | None = None, n_frames: int = 160, chunk: int = 32, overlap: int = 8,
+                        cfg: VideoConfig | None = None, n_frames: int = 160, chunk: int = 32, overlap: int = 16,
                         process_res: int = 336) -> tuple[CaptureMeta, list[Fragment]]:
     """Whole video as one fragment: DA3 poses per overlapping chunk, chunks chained by shared frames."""
     from scan.multiview import MultiViewResult, join_chunks
