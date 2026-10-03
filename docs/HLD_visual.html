@@ -1,0 +1,496 @@
+<title>Property Scan AI Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a drafting sheet — narrow reading column, diagrams break wider, measurements always in mono with ± intervals */
+:root{
+  --bg:#f4f6f8; --sheet:#ffffff; --ink:#18212c; --muted:#5b6876; --rule:#d8dee5; --grid:#e9edf1;
+  --accent:#c2410c;            /* surveyor orange: drift, damage, attention */
+  --lidar:#0f766e; --video:#4f46e5; --photo:#b45309;
+  --lidar-soft:#d7efec; --video-soft:#e3e2fb; --photo-soft:#f6e8d3; --accent-soft:#fbe4d8;
+  --good:#15803d; --warn:#a16207; --bad:#b91c1c;
+  --good-soft:#dcf2e3; --warn-soft:#f7ecc9; --bad-soft:#f8dcdc;
+  --plan-wall:#18212c; --plan-fill:#ffffff;
+  --display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1419; --sheet:#161d24; --ink:#e6ebf0; --muted:#9aa7b4; --rule:#2a343f; --grid:#1c252e;
+  --accent:#fb8a4b; --lidar:#2dd4bf; --video:#a5b4fc; --photo:#fbbf24;
+  --lidar-soft:#12302d; --video-soft:#23244a; --photo-soft:#3a2a10; --accent-soft:#3b2216;
+  --good:#4ade80; --warn:#facc15; --bad:#f87171;
+  --good-soft:#123020; --warn-soft:#352c0e; --bad-soft:#3a1717;
+  --plan-wall:#e6ebf0; --plan-fill:#161d24; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0f1419; --sheet:#161d24; --ink:#e6ebf0; --muted:#9aa7b4; --rule:#2a343f; --grid:#1c252e;
+  --accent:#fb8a4b; --lidar:#2dd4bf; --video:#a5b4fc; --photo:#fbbf24;
+  --lidar-soft:#12302d; --video-soft:#23244a; --photo-soft:#3a2a10; --accent-soft:#3b2216;
+  --good:#4ade80; --warn:#facc15; --bad:#f87171;
+  --good-soft:#123020; --warn-soft:#352c0e; --bad-soft:#3a1717;
+  --plan-wall:#e6ebf0; --plan-fill:#161d24; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px;padding-inline:16px;padding-block:32px 64px}
+.wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:clamp(28px,4.4vw,44px);font-weight:800;line-height:1.1}
+h2{font-size:22px;font-weight:700}
+h3{font-size:15px;font-weight:700}
+p{margin:0;max-width:68ch}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)}
+section.sheet{background:var(--sheet);border:1px solid var(--rule);border-radius:6px;padding:24px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.sec-head{display:flex;flex-direction:column;gap:6px}
+.scroll{overflow-x:auto;min-width:0}
+
+/* title block */
+.titleblock{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:end;border-bottom:2px solid var(--ink);padding-bottom:18px}
+.tb-meta{display:grid;grid-template-columns:auto auto;gap:2px 14px;font-family:var(--mono);font-size:12px;color:var(--muted);border:1px solid var(--rule);background:var(--sheet);padding:10px 12px;border-radius:4px}
+.tb-meta b{color:var(--ink);font-weight:500}
+.lede{font-size:17px;max-width:72ch}
+@media (max-width:640px){.titleblock{grid-template-columns:1fr}}
+
+/* flow boxes */
+.flow{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap}
+.box{border:1.5px solid var(--ink);border-radius:4px;padding:12px 14px;background:var(--sheet);display:flex;flex-direction:column;gap:4px;min-width:0;flex:1 1 180px}
+.box small{color:var(--muted);font-size:13px}
+.box.dash{border-style:dashed}
+.arrow{align-self:center;font-family:var(--mono);color:var(--muted);font-size:20px;flex:0 0 auto}
+@media (max-width:640px){.arrow{transform:rotate(90deg);width:100%;text-align:center}}
+.chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;padding:3px 8px;border-radius:999px;border:1px solid var(--rule);background:var(--bg);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.t-lidar{color:var(--lidar)} .t-video{color:var(--video)} .t-photo{color:var(--photo)}
+.bg-lidar{background:var(--lidar)} .bg-video{background:var(--video)} .bg-photo{background:var(--photo)}
+
+/* pipeline */
+.pipeline{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+.adapters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:720px){.adapters{grid-template-columns:1fr}}
+.adapter{border-radius:4px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;border:1.5px solid}
+.adapter.l{border-color:var(--lidar);background:var(--lidar-soft)}
+.adapter.v{border-color:var(--video);background:var(--video-soft)}
+.adapter.p{border-color:var(--photo);background:var(--photo-soft)}
+.adapter small{font-size:13px;color:var(--ink);opacity:.85}
+.funnel{text-align:center;font-family:var(--mono);color:var(--muted);font-size:13px}
+.frameset{border:2px solid var(--ink);border-radius:4px;padding:12px 16px;text-align:center;background:var(--sheet);display:flex;flex-direction:column;gap:4px}
+.frameset .mono{font-size:12.5px;color:var(--muted)}
+.phases{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+@media (max-width:900px){.phases{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:480px){.phases{grid-template-columns:1fr}}
+.phase{border:1px solid var(--rule);border-top:3px solid var(--ink);border-radius:4px;padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--sheet);min-width:0}
+.phase ol{margin:0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:13.5px}
+.phase li{display:flex;gap:8px;align-items:baseline}
+.phase li .mono{font-size:11px;color:var(--muted);flex:0 0 auto}
+.phase.attn{border-top-color:var(--accent)}
+
+/* tiers */
+.tiers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:760px){.tiers{grid-template-columns:1fr}}
+.tier{border:1px solid var(--rule);border-radius:4px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.tier header{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:13.5px}
+.kv dt{color:var(--muted)} .kv dd{margin:0}
+.dim{display:flex;flex-direction:column;gap:6px;padding-top:6px;border-top:1px dashed var(--rule)}
+.dim svg{width:100%;height:46px;display:block}
+.dim .lbl{font-family:var(--mono);font-size:12.5px}
+
+/* plan */
+.plan-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:820px){.plan-grid{grid-template-columns:1fr}}
+.plan svg{width:100%;height:auto;display:block;max-width:560px}
+.plan .wall{fill:none;stroke:var(--plan-wall);stroke-width:5}
+.plan .room{fill:var(--plan-fill)}
+.plan .gap{fill:var(--plan-fill)}
+.plan .door{fill:none;stroke:var(--muted);stroke-width:1.2}
+.plan .win{stroke:var(--video);stroke-width:5}
+.plan .rname{font-family:var(--display);font-weight:700;font-size:13px;fill:var(--ink)}
+.plan .rdim{font-family:var(--mono);font-size:10.5px;fill:var(--muted)}
+.plan .dimline{stroke:var(--accent);stroke-width:1}
+.plan .dimtxt{font-family:var(--mono);font-size:10.5px;fill:var(--accent)}
+.plan .stain{fill:var(--accent);fill-opacity:.25;stroke:var(--accent);stroke-width:1.2;stroke-dasharray:3 2}
+.plan .stain-lbl{font-family:var(--mono);font-size:10px;fill:var(--accent)}
+.plan .adj{stroke:var(--lidar);stroke-width:1.5;stroke-dasharray:2 3;fill:none}
+pre.json{margin:0;font-family:var(--mono);font-size:12px;line-height:1.5;background:var(--bg);border:1px solid var(--rule);border-radius:4px;padding:14px;overflow-x:auto;color:var(--ink)}
+pre.json .k{color:var(--video)} pre.json .n{color:var(--lidar)} pre.json .s{color:var(--photo)}
+
+/* models */
+.models{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.model{border:1px solid var(--rule);border-radius:4px;padding:12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.model .tags{display:flex;gap:6px;flex-wrap:wrap}
+.model p{font-size:13.5px}
+
+/* ladder */
+.ladder{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;counter-reset:step}
+@media (max-width:820px){.ladder{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:460px){.ladder{grid-template-columns:1fr}}
+.rung{border:1px solid var(--rule);border-radius:4px;padding:14px;display:flex;flex-direction:column;gap:6px;position:relative}
+.rung .n{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.rung p{font-size:13.5px}
+.rung.last{border-color:var(--accent);background:var(--accent-soft)}
+
+/* robustness */
+.robust{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:14px;align-items:center}
+@media (max-width:760px){.robust{grid-template-columns:1fr}}
+.list{display:flex;flex-direction:column;gap:6px;font-size:13.5px}
+.list div{display:flex;gap:8px;align-items:baseline}
+.outcomes{display:flex;flex-direction:column;gap:10px}
+.outcome{border-radius:4px;padding:10px 12px;font-size:13.5px;border:1px solid}
+.outcome.ok{border-color:var(--good);background:var(--good-soft)}
+.outcome.no{border-color:var(--bad);background:var(--bad-soft)}
+
+/* gates */
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:620px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.pill{display:inline-block;font-family:var(--mono);font-size:11.5px;padding:2px 8px;border-radius:999px;white-space:nowrap;border:1px solid}
+.pill.g{color:var(--good);border-color:var(--good);background:var(--good-soft)}
+.pill.y{color:var(--warn);border-color:var(--warn);background:var(--warn-soft)}
+.pill.r{color:var(--bad);border-color:var(--bad);background:var(--bad-soft)}
+
+/* timeline */
+.tl{display:flex;flex-direction:column;gap:8px;min-width:640px}
+.tl-axis,.tl-row{display:grid;grid-template-columns:210px 1fr;gap:12px;align-items:center}
+.tl-track{position:relative;height:24px;border-left:1px solid var(--rule);border-right:2px solid var(--accent)}
+.tl-axis .tl-track{height:18px;border:none}
+.tl-tick{position:absolute;top:0;font-family:var(--mono);font-size:11px;color:var(--muted);transform:translateX(-50%);white-space:nowrap}
+.tl-bar{position:absolute;top:3px;height:18px;border-radius:3px;background:var(--ink);opacity:.85}
+.tl-bar.you{background:var(--accent)}
+.tl-name{font-size:13px}
+.tl-night{position:absolute;top:0;bottom:0;background:var(--grid)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:14px;height:10px;border-radius:2px;display:inline-block}
+
+/* decisions */
+.decisions{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.dec{border-left:3px solid var(--ink);padding:6px 12px;display:flex;flex-direction:column;gap:2px}
+.dec b{font-family:var(--display);font-size:14px}
+.dec span{font-size:13px;color:var(--muted)}
+footer{font-size:12.5px;color:var(--muted);text-align:center}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+
+<div class="wrap">
+
+  <header class="titleblock">
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
+      <span class="eyebrow">High-level design · v1 draft</span>
+      <h1>Property Scan AI</h1>
+      <p class="lede">An iPhone walk-through goes in. A stitched, dimensioned floor plan comes out, with damage, repair scope and an honest <span class="mono">±</span> on every number. It works from photos, video or LiDAR, offline, with one command.</p>
+    </div>
+    <div class="tb-meta" aria-label="Document details">
+      <span>Sheet</span><b>HLD / A1</b>
+      <span>Date</span><b>2026-10-03</b>
+      <span>Deadline</span><b>05 Oct 10:00 IST</b>
+      <span>Runs on</span><b>CPU laptop, offline</b>
+      <span>Full spec</span><b>docs/HLD.md</b>
+    </div>
+  </header>
+
+  <!-- 1. Context -->
+  <section class="sheet" aria-labelledby="s1">
+    <div class="sec-head"><span class="eyebrow">1 · System context</span><h2 id="s1">The phone only captures. The laptop does everything else.</h2></div>
+    <div class="flow">
+      <div class="box">
+        <h3>Capture on iPhone 15+</h3>
+        <small>Stock apps, following our one-page protocol</small>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
+          <span class="chip"><span class="dot bg-lidar"></span>Stray Scanner · LiDAR (Pro)</span>
+          <span class="chip"><span class="dot bg-video"></span>Camera · video walkthrough</span>
+          <span class="chip"><span class="dot bg-photo"></span>Camera · 2–8 photos per room</span>
+        </div>
+      </div>
+      <span class="arrow" aria-hidden="true">→</span>
+      <div class="box dash">
+        <h3>Transfer</h3>
+        <small>USB via the Apple Devices app (primary)<br>Google Drive (fallback)</small>
+      </div>
+      <span class="arrow" aria-hidden="true">→</span>
+      <div class="box">
+        <h3>Pipeline on the laptop</h3>
+        <small class="mono">scan run &lt;capture_dir&gt;</small>
+        <small>Tier detected from the files. No network calls.</small>
+      </div>
+      <span class="arrow" aria-hidden="true">→</span>
+      <div class="box">
+        <h3>Outputs</h3>
+        <small class="mono">result.json · plan.svg · qc_report.md</small>
+        <small>Plus <span class="mono">scan bench</span> for every gate table</small>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Pipeline -->
+  <section class="sheet" aria-labelledby="s2">
+    <div class="sec-head"><span class="eyebrow">2 · Architecture</span><h2 id="s2">Three inputs, one common format, one shared engine</h2>
+      <p class="muted">Each tier has a small adapter that converts its files into a <b>FrameSet</b>. Everything after that is shared code. Thinner input carries a larger uncertainty, so intervals widen on their own.</p></div>
+    <div class="pipeline">
+      <div class="adapters">
+        <div class="adapter l"><h3 class="t-lidar">LiDAR adapter</h3><small>Sensor depth + confidence + ARKit poses. Small σ.</small></div>
+        <div class="adapter v"><h3 class="t-video">Video adapter</h3><small>Keyframes → metric depth model + COLMAP poses. Medium σ.</small></div>
+        <div class="adapter p"><h3 class="t-photo">Photo adapter</h3><small>Per-room photos → metric depth model, no global poses. Large σ.</small></div>
+      </div>
+      <div class="funnel" aria-hidden="true">↓ ↓ ↓</div>
+      <div class="frameset"><h3>FrameSet</h3><span class="mono">rgb · depth · σ_depth · intrinsics · pose (if known) · labels</span></div>
+      <div class="funnel" aria-hidden="true">↓</div>
+      <div class="phases">
+        <div class="phase"><span class="eyebrow">Clean</span><ol>
+          <li><span class="mono">C3</span>QC: blur, light, speed, coverage</li>
+          <li><span class="mono">C4</span>Surface labels (SegFormer)</li></ol></div>
+        <div class="phase attn"><span class="eyebrow">Geometry</span><ol>
+          <li><span class="mono">C5</span>Drift correction, with on/off ablation</li>
+          <li><span class="mono">C6</span>Split the walk into rooms</li>
+          <li><span class="mono">C7</span>Walls, floor, ceiling planes</li>
+          <li><span class="mono">C8</span>Openings + RGB edge refinement</li></ol></div>
+        <div class="phase"><span class="eyebrow">Assemble</span><ol>
+          <li><span class="mono">C9</span>Stitch rooms, adjacency through doors, no overlaps</li></ol></div>
+        <div class="phase"><span class="eyebrow">Assess</span><ol>
+          <li><span class="mono">C10</span>Damage: detect, outline, measure m²</li>
+          <li><span class="mono">C11</span>Rules: flags + scope items</li></ol></div>
+        <div class="phase"><span class="eyebrow">Deliver</span><ol>
+          <li><span class="mono">C12</span>Calibrate 90% intervals</li>
+          <li><span class="mono">C13</span>JSON, plan, QC report</li></ol></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Tiers -->
+  <section class="sheet" aria-labelledby="s3">
+    <div class="sec-head"><span class="eyebrow">3 · Input tiers</span><h2 id="s3">Same output from every tier. The interval widens as the data thins.</h2>
+      <p class="muted">Illustration: the same 3.42 m wall measured at each tier, with its 90% interval.</p></div>
+    <div class="tiers">
+      <article class="tier">
+        <header><h3 class="t-lidar">LiDAR</h3><span class="chip">Pro iPhones</span></header>
+        <dl class="kv"><dt>Depth</dt><dd>Sensor</dd><dt>Poses</dt><dd>ARKit + drift fix</dd><dt>Gate</dt><dd class="mono">cm-level</dd></dl>
+        <div class="dim">
+          <svg viewBox="0 0 300 46" role="img" aria-label="Narrow interval, plus or minus 2 centimetres">
+            <line x1="10" y1="30" x2="290" y2="30" stroke="var(--rule)" stroke-width="2"/>
+            <rect x="146" y="20" width="8" height="20" rx="2" fill="var(--lidar)" fill-opacity=".35" stroke="var(--lidar)"/>
+            <line x1="150" y1="12" x2="150" y2="44" stroke="var(--lidar)" stroke-width="2"/>
+          </svg>
+          <span class="lbl t-lidar">3.42 m ± 0.02</span>
+        </div>
+      </article>
+      <article class="tier">
+        <header><h3 class="t-video">Video</h3><span class="chip">Any iPhone 15+</span></header>
+        <dl class="kv"><dt>Depth</dt><dd>Depth Anything V2</dd><dt>Poses</dt><dd>COLMAP</dd><dt>Gate</dt><dd class="mono">walls ±3%</dd></dl>
+        <div class="dim">
+          <svg viewBox="0 0 300 46" role="img" aria-label="Medium interval, plus or minus 3 percent">
+            <line x1="10" y1="30" x2="290" y2="30" stroke="var(--rule)" stroke-width="2"/>
+            <rect x="120" y="20" width="60" height="20" rx="2" fill="var(--video)" fill-opacity=".3" stroke="var(--video)"/>
+            <line x1="150" y1="12" x2="150" y2="44" stroke="var(--video)" stroke-width="2"/>
+          </svg>
+          <span class="lbl t-video">3.42 m ± 0.10</span>
+        </div>
+      </article>
+      <article class="tier">
+        <header><h3 class="t-photo">Photos</h3><span class="chip">Any iPhone 15+</span></header>
+        <dl class="kv"><dt>Depth</dt><dd>Depth Anything V2</dd><dt>Poses</dt><dd>None, door matching</dd><dt>Gate</dt><dd class="mono">walls ±8%</dd></dl>
+        <div class="dim">
+          <svg viewBox="0 0 300 46" role="img" aria-label="Wide interval, plus or minus 8 percent">
+            <line x1="10" y1="30" x2="290" y2="30" stroke="var(--rule)" stroke-width="2"/>
+            <rect x="72" y="20" width="156" height="20" rx="2" fill="var(--photo)" fill-opacity=".28" stroke="var(--photo)"/>
+            <line x1="150" y1="12" x2="150" y2="44" stroke="var(--photo)" stroke-width="2"/>
+          </svg>
+          <span class="lbl t-photo">3.42 m ± 0.27</span>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- 4. Output -->
+  <section class="sheet" aria-labelledby="s4">
+    <div class="sec-head"><span class="eyebrow">4 · What comes out</span><h2 id="s4">One whole-property plan, backed by JSON</h2>
+      <p class="muted">Example output for a three-room flat with a hall. Values are illustrative.</p></div>
+    <div class="plan-grid">
+      <div class="plan scroll">
+        <svg viewBox="0 0 540 380" role="img" aria-label="Example floor plan: living room, hall, bedroom with a water stain, kitchen">
+          <!-- rooms -->
+          <rect class="room" x="30" y="40" width="230" height="300"/>
+          <rect class="room" x="260" y="40" width="80" height="300"/>
+          <rect class="room" x="340" y="40" width="170" height="150"/>
+          <rect class="room" x="340" y="190" width="170" height="150"/>
+          <rect class="wall" x="30" y="40" width="230" height="300"/>
+          <rect class="wall" x="260" y="40" width="80" height="300"/>
+          <rect class="wall" x="340" y="40" width="170" height="150"/>
+          <rect class="wall" x="340" y="190" width="170" height="150"/>
+          <!-- door gaps -->
+          <rect class="gap" x="256" y="200" width="8" height="40"/>
+          <rect class="gap" x="336" y="100" width="8" height="40"/>
+          <rect class="gap" x="336" y="250" width="8" height="40"/>
+          <rect class="gap" x="282" y="336" width="36" height="8"/>
+          <!-- door swings -->
+          <path class="door" d="M260 200 L300 200 A40 40 0 0 1 260 240"/>
+          <path class="door" d="M340 100 L380 100 A40 40 0 0 1 340 140"/>
+          <path class="door" d="M340 250 L380 250 A40 40 0 0 1 340 290"/>
+          <path class="door" d="M282 340 L282 304 A36 36 0 0 1 318 340"/>
+          <!-- window -->
+          <line class="win" x1="30" y1="110" x2="30" y2="190"/>
+          <!-- adjacency -->
+          <path class="adj" d="M145 190 C 200 190, 260 220, 300 220 M300 220 C 320 220, 340 120, 425 115 M300 220 C 320 220, 340 270, 425 265"/>
+          <!-- stain -->
+          <ellipse class="stain" cx="455" cy="72" rx="28" ry="16"/>
+          <text class="stain-lbl" x="352" y="64">water stain</text>
+          <text class="stain-lbl" x="352" y="76">0.31 m² ± 0.05</text>
+          <!-- labels -->
+          <text class="rname" x="110" y="160">Living</text>
+          <text class="rdim" x="96" y="176">27.6 m² · h 2.61</text>
+          <text class="rname" x="272" y="120">Hall</text>
+          <text class="rname" x="398" y="136">Bedroom</text>
+          <text class="rdim" x="386" y="152">10.2 m² · h 2.61</text>
+          <text class="rname" x="402" y="268">Kitchen</text>
+          <text class="rdim" x="390" y="284">10.2 m² · h 2.60</text>
+          <!-- dimension lines -->
+          <line class="dimline" x1="30" y1="22" x2="260" y2="22"/>
+          <line class="dimline" x1="30" y1="16" x2="30" y2="28"/><line class="dimline" x1="260" y1="16" x2="260" y2="28"/>
+          <text class="dimtxt" x="98" y="16">4.60 m ± 0.02</text>
+          <line class="dimline" x1="340" y1="22" x2="510" y2="22"/>
+          <line class="dimline" x1="340" y1="16" x2="340" y2="28"/><line class="dimline" x1="510" y1="16" x2="510" y2="28"/>
+          <text class="dimtxt" x="388" y="16">3.40 m ± 0.02</text>
+          <line class="dimline" x1="12" y1="40" x2="12" y2="340"/>
+          <line class="dimline" x1="6" y1="40" x2="18" y2="40"/><line class="dimline" x1="6" y1="340" x2="18" y2="340"/>
+          <text class="dimtxt" x="0" y="0" transform="translate(8 236) rotate(-90)">6.00 m ± 0.02</text>
+          <text class="rdim" x="264" y="362">door 0.82 ± 0.01</text>
+        </svg>
+      </div>
+<pre class="json" aria-label="Excerpt of result.json"><span class="k">"rooms"</span>: [{
+  <span class="k">"label"</span>: <span class="s">"bedroom"</span>,
+  <span class="k">"ceiling_height"</span>: {<span class="k">"value"</span>: <span class="n">2.61</span>,
+     <span class="k">"lo"</span>: <span class="n">2.60</span>, <span class="k">"hi"</span>: <span class="n">2.62</span>},
+  <span class="k">"openings"</span>: [{<span class="k">"type"</span>: <span class="s">"door"</span>,
+     <span class="k">"width"</span>: {<span class="k">"value"</span>: <span class="n">0.82</span>, ...}}]
+}],
+<span class="k">"damage"</span>: [{<span class="k">"class"</span>: <span class="s">"water_stain"</span>,
+  <span class="k">"surface_id"</span>: <span class="s">"bedroom.ceiling"</span>,
+  <span class="k">"area_m2"</span>: {<span class="k">"value"</span>: <span class="n">0.31</span>, ...}}],
+<span class="k">"flags"</span>: [{<span class="k">"rule_id"</span>: <span class="s">"R03_ceiling_water"</span>,
+  <span class="k">"reason"</span>: <span class="s">"possible leak above"</span>}],
+<span class="k">"scope"</span>: [{<span class="k">"item"</span>: <span class="s">"Drywall patch"</span>,
+  <span class="k">"qty"</span>: {<span class="k">"value"</span>: <span class="n">0.36</span>, ...}, <span class="k">"unit"</span>: <span class="s">"m2"</span>}]</pre>
+    </div>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--accent)"></span>Dimensions with 90% interval</span>
+      <span><span class="sw" style="background:var(--lidar)"></span>Adjacency through doors</span>
+      <span><span class="sw" style="background:var(--video)"></span>Window</span>
+    </div>
+  </section>
+
+  <!-- 5. Models -->
+  <section class="sheet" aria-labelledby="s5">
+    <div class="sec-head"><span class="eyebrow">5 · Model stack</span><h2 id="s5">Small pretrained models where sensors fall short, maths everywhere else</h2>
+      <p class="muted">All CPU-friendly and offline. Weights are downloaded by a setup script, never committed. No LLMs or cloud APIs in v1.</p></div>
+    <div class="models">
+      <div class="model"><h3>Depth Anything V2 · Metric Indoor S</h3><div class="tags"><span class="chip"><span class="dot bg-video"></span>video</span><span class="chip"><span class="dot bg-photo"></span>photo</span></div><p>Distance in metres for every pixel of an ordinary photo. Stands in for the LiDAR sensor.</p></div>
+      <div class="model"><h3>SegFormer · ADE20K</h3><div class="tags"><span class="chip">all tiers</span></div><p>Labels wall, floor, ceiling, door, window and mirror, so furniture doesn't distort the room.</p></div>
+      <div class="model"><h3>pycolmap</h3><div class="tags"><span class="chip"><span class="dot bg-video"></span>video</span></div><p>Camera motion from video frames (structure from motion). Scale comes from the depth model.</p></div>
+      <div class="model"><h3>OWLv2 + SAM 2-tiny</h3><div class="tags"><span class="chip">damage</span></div><p>Finds "water stain" or "crack" from a text prompt, then outlines the exact pixels.</p></div>
+      <div class="model"><h3>Open3D</h3><div class="tags"><span class="chip">geometry</span></div><p>Plane fitting (RANSAC), surface fusion (TSDF), alignment (ICP), pose graph for drift.</p></div>
+      <div class="model"><h3>pydantic · svgwrite</h3><div class="tags"><span class="chip">output</span></div><p>Validated JSON with a generated published schema, and the rendered SVG floor plan.</p></div>
+    </div>
+  </section>
+
+  <!-- 6. Robustness -->
+  <section class="sheet" aria-labelledby="s6">
+    <div class="sec-head"><span class="eyebrow">6 · Robustness</span><h2 id="s6">Every problem lowers confidence or gets refused</h2>
+      <p class="muted">The brief caps the total score for confident wrong answers on thin input, so we never produce one.</p></div>
+    <div class="robust">
+      <div class="list">
+        <div><span class="mono muted">→</span>Moving too fast, blurry frames</div>
+        <div><span class="mono muted">→</span>Ceiling never captured</div>
+        <div><span class="mono muted">→</span>Too few or non-overlapping photos</div>
+        <div><span class="mono muted">→</span>Mirrors, glass, wet-look surfaces</div>
+        <div><span class="mono muted">→</span>Low light, people walking through</div>
+        <div><span class="mono muted">→</span>Drift on long walks</div>
+      </div>
+      <div class="box" style="flex:0 1 220px;text-align:center"><h3>QC + uncertainty</h3><small>Detect, drop bad data, raise σ</small></div>
+      <div class="outcomes">
+        <div class="outcome ok"><b>Lower confidence:</b> wider interval and a warning in the JSON</div>
+        <div class="outcome ok"><b>Clear refusal:</b> <span class="mono">null</span> with a reason, e.g. "ceiling not seen"</div>
+        <div class="outcome no"><b>Never:</b> a precise-looking number that's wrong</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. Model risk -->
+  <section class="sheet" aria-labelledby="s7">
+    <div class="sec-head"><span class="eyebrow">7 · If a model underperforms</span><h2 id="s7">Measure each model, then climb the ladder only as far as needed</h2>
+      <p class="muted">LiDAR captures record RGB, true depth and true poses together, which gives free ground truth for the depth and pose models.</p></div>
+    <div class="ladder">
+      <div class="rung"><span class="n">Step 1</span><h3>Zero-shot baseline</h3><p>Pretrained weights as-is, scored per component by the harness.</p></div>
+      <div class="rung"><span class="n">Step 2</span><h3>Light calibration</h3><p>2–5 parameter corrections, validated on a held-out capture.</p></div>
+      <div class="rung"><span class="n">Step 3</span><h3>Fallback ladder</h3><p>Swap or augment the model. Time-boxed to 1–2 hours each.</p></div>
+      <div class="rung last"><span class="n">Step 4</span><h3>Widen and document</h3><p>Honest intervals, listed as a known failure. Fine-tuning becomes the next step.</p></div>
+    </div>
+  </section>
+
+  <!-- 8. Gates -->
+  <section class="sheet" aria-labelledby="s8">
+    <div class="sec-head"><span class="eyebrow">8 · Gates</span><h2 id="s8">Where each gate is won, and our honest expectation</h2></div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Gate</th><th>Target</th><th>Where it's won</th><th>Expectation</th></tr></thead>
+        <tbody>
+          <tr><td>Drift accountability</td><td class="mono">ablation on/off</td><td>Pose graph + loop closure + plane anchoring</td><td><span class="pill g">pass by design</span></td></tr>
+          <tr><td>Calibration</td><td class="mono">every tier</td><td>Per-tier σ factors fitted on the benchmark</td><td><span class="pill g">in our control</span></td></tr>
+          <tr><td>Repeatability</td><td class="mono">≤ 1 cm / 0.5%</td><td>Deterministic pipeline, robust fits, Manhattan snap</td><td><span class="pill g">likely pass</span></td></tr>
+          <tr><td>Ceiling height</td><td class="mono">≤ 1.5 cm</td><td>Plane fits over thousands of points, LiDAR bias correction, protocol says tilt up</td><td><span class="pill y">borderline</span></td></tr>
+          <tr><td>Video walls</td><td class="mono">± 3%</td><td>COLMAP shape, scale averaged across many frames</td><td><span class="pill y">borderline</span></td></tr>
+          <tr><td>Photo walls, footprint, stitch</td><td class="mono">± 8%</td><td>Multi-cue scale, door matching, no-overlap solver</td><td><span class="pill y">borderline</span></td></tr>
+          <tr><td>Head-to-head vs Polycam</td><td class="mono">≥ 70% beat/tie</td><td>Same sensor, more fusion, edge refinement</td><td><span class="pill y">borderline</span></td></tr>
+          <tr><td>Opening widths</td><td class="mono">≤ 2 cm on ≥ 85%</td><td>Plane images + high-res RGB edge refinement (≈1–2 mm per pixel)</td><td><span class="pill r">hardest · fix-loop target</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 9. Timeline -->
+  <section class="sheet" aria-labelledby="s9">
+    <div class="sec-head"><span class="eyebrow">9 · Delivery plan</span><h2 id="s9">44 hours to the deadline</h2>
+      <p class="muted">If we fall behind, cut TSDF fusion first, then LightGlue, then damage multi-view fusion. Never cut a tier, the harness, the fix loop or calibration.</p></div>
+    <div class="scroll">
+      <div class="tl" role="img" aria-label="Timeline from 3 October 14:00 to 5 October 10:00">
+        <div class="tl-axis"><span></span><div class="tl-track">
+          <span class="tl-tick" style="left:0%">Sat 14:00</span>
+          <span class="tl-tick" style="left:22.7%">00:00</span>
+          <span class="tl-tick" style="left:40.9%">Sun 08:00</span>
+          <span class="tl-tick" style="left:63.6%">18:00</span>
+          <span class="tl-tick" style="left:77.3%">00:00</span>
+          <span class="tl-tick" style="left:100%;color:var(--accent)">Mon 10:00</span>
+        </div></div>
+        <div class="tl-row"><span class="tl-name">LiDAR end-to-end on sample</span><div class="tl-track"><span class="tl-bar" style="left:0%;width:13.6%"></span></div></div>
+        <div class="tl-row"><span class="tl-name">Labels, drift, rooms, openings, stitch</span><div class="tl-track"><span class="tl-bar" style="left:13.6%;width:13.6%"></span></div></div>
+        <div class="tl-row"><span class="tl-name">Video + photo tiers, harness</span><div class="tl-track"><span class="tl-bar" style="left:40.9%;width:11.4%"></span></div></div>
+        <div class="tl-row"><span class="tl-name">Calibration, damage, rules</span><div class="tl-track"><span class="tl-bar" style="left:52.3%;width:9.1%"></span></div></div>
+        <div class="tl-row"><span class="tl-name">Fix loop (before / after)</span><div class="tl-track"><span class="tl-bar" style="left:61.4%;width:9.1%"></span></div></div>
+        <div class="tl-row"><span class="tl-name">Protocol, matrices, report, README</span><div class="tl-track"><span class="tl-bar" style="left:70.5%;width:13.6%"></span></div></div>
+        <div class="tl-row"><span class="tl-name">You: install app, get tape/laser</span><div class="tl-track"><span class="tl-bar you" style="left:0%;width:6.8%"></span></div></div>
+        <div class="tl-row"><span class="tl-name">You: benchmark captures + measuring</span><div class="tl-track"><span class="tl-bar you" style="left:40.9%;width:9.1%"></span></div></div>
+        <div class="tl-row"><span class="tl-name">You: protocol dry run</span><div class="tl-track"><span class="tl-bar you" style="left:90.9%;width:4.5%"></span></div></div>
+      </div>
+    </div>
+    <div class="legend"><span><span class="sw" style="background:var(--ink)"></span>Build</span><span><span class="sw" style="background:var(--accent)"></span>Physical work (you)</span></div>
+  </section>
+
+  <!-- 10. Decisions -->
+  <section class="sheet" aria-labelledby="s10">
+    <div class="sec-head"><span class="eyebrow">10 · Decisions so far</span><h2 id="s10">What we've locked in</h2></div>
+    <div class="decisions">
+      <div class="dec"><b>Stock apps + protocol</b><span>No Mac, so no iOS build. Stray Scanner matches the sample data.</span></div>
+      <div class="dec"><b>Tier auto-detected</b><span>From the files, never asked. Data wins over claims.</span></div>
+      <div class="dec"><b>Warn, don't block</b><span>Unsupported devices still run, with wider intervals.</span></div>
+      <div class="dec"><b>No property type</b><span>The system finds the rooms. Photo folders are named per room.</span></div>
+      <div class="dec"><b>CLI only</b><span>One command per capture, as the brief asks.</span></div>
+      <div class="dec"><b>Offline, no LLM</b><span>Respects "no infra" and keeps the live walk-in safe.</span></div>
+      <div class="dec"><b>Pretrained first</b><span>Then light calibration. Fine-tune only if a gate still fails.</span></div>
+      <div class="dec"><b>Geometry decides</b><span>Model outputs are votes; planes and multiple views settle them.</span></div>
+    </div>
+  </section>
+
+  <footer>Property Scan AI · HLD v1 draft · detailed spec in <span class="mono">docs/HLD.md</span></footer>
+</div>
