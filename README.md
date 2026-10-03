@@ -75,6 +75,13 @@ Measure every room: wall lengths, floor area, ceiling height with uncertainties
 scan measure path/to/capture --device "iPhone 15 Pro"
 ```
 
+Find doors, windows and open passages with widths and heights (writes `openings.json`
+and `plan_openings.png`; `--elevations` also saves a front view of every wall):
+
+```bash
+scan openings path/to/capture --device "iPhone 15 Pro"
+```
+
 ## Tests
 
 ```bash

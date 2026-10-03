@@ -256,8 +256,12 @@ def write_measurements(rooms: list[RoomMeasurement], diagnostics: dict, capture_
     return path
 
 
-def render_plan(rooms: list[RoomMeasurement], layout: RoomLayout, out_path: Path, px_per_m: int = 90) -> Path:
-    """Dimensioned floor plan in the room-aligned frame. Red dashed = inferred wall."""
+def render_plan(rooms: list[RoomMeasurement], layout: RoomLayout, out_path: Path, px_per_m: int = 90,
+                openings=None) -> Path:
+    """Dimensioned floor plan in the room-aligned frame. Red dashed = inferred wall.
+
+    ``openings`` (from C8) are drawn as gaps: brown = door, blue = window, green = open passage.
+    """
     all_uv = np.concatenate([np.array(r.corners_uv) for r in rooms])
     lo, hi = all_uv.min(axis=0) - 0.6, all_uv.max(axis=0) + 0.6
     w, h = (np.ceil((hi - lo) * px_per_m)).astype(int)
@@ -297,11 +301,33 @@ def render_plan(rooms: list[RoomMeasurement], layout: RoomLayout, out_path: Path
         for k, text in enumerate(lines):
             (tw, _), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
             cv2.putText(img, text, (x - tw // 2, y - 10 + 16 * k), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 1)
-    for d in layout.doorways:
-        uv = layout.floor_map.frame.xz_to_uv(np.array([d.center_xz]))[0]
-        cv2.circle(img, px(uv), 5, (200, 120, 0), -1)
-    cv2.putText(img, "lengths in m   red dashed = inferred wall   orange = doorway",
-                (8, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 1)
+    if openings:
+        by_room = {r.id: r for r in rooms}
+        colours = {"door": (40, 90, 160), "window": (220, 140, 30), "opening": (60, 170, 60)}
+        for op in openings:
+            r = by_room.get(op.room_id)
+            if r is None:
+                continue
+            pts = np.array(r.corners_uv)
+            a, b = pts[op.wall_index], pts[(op.wall_index + 1) % len(pts)]
+            direction = (b - a) / (np.linalg.norm(b - a) + 1e-12)
+            p0 = a + direction * op.offset_m
+            p1 = p0 + direction * op.width_m
+            cv2.line(img, px(p0), px(p1), (255, 255, 255), 5)
+            cv2.line(img, px(p0), px(p1), colours[op.kind], 2)
+            if op.kind == "window":
+                cv2.line(img, px(p0), px(p1), colours[op.kind], 4)
+                cv2.line(img, px(p0), px(p1), (255, 255, 255), 1)
+            mid = (p0 + p1) / 2
+            cv2.putText(img, f"{op.width_m:.2f}", (px(mid)[0] + 4, px(mid)[1] - 6),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.36, colours[op.kind], 1)
+        legend = "lengths in m   red dashed = inferred wall   brown = door   blue = window   green = opening"
+    else:
+        for d in layout.doorways:
+            uv = layout.floor_map.frame.xz_to_uv(np.array([d.center_xz]))[0]
+            cv2.circle(img, px(uv), 5, (200, 120, 0), -1)
+        legend = "lengths in m   red dashed = inferred wall   orange = doorway"
+    cv2.putText(img, legend, (8, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 1)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(out_path), img)
     return out_path

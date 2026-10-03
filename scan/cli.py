@@ -273,6 +273,58 @@ def cmd_measure(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_openings(args: argparse.Namespace) -> int:
+    from scan.measure import measure_rooms, render_plan
+    from scan.openings import find_openings, write_openings
+    from scan.qc import run_qc
+    from scan.rooms import segment_rooms
+    from scan.semantics import run_semantics
+    from scan.structure import run_structure
+
+    started = time.perf_counter()
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    qc = run_qc(fs)
+    cov = qc.report.coverage
+    labelled = run_semantics(qc.frameset).frameset
+    model = run_structure(labelled, floor_hint_y=cov.floor_y, ceiling_seen=cov.ceiling_seen)
+    layout = segment_rooms(model, fs.trajectory)
+    rooms, _ = measure_rooms(model, layout)
+    out_dir = Path(args.out) / fs.meta.capture_id
+    t0 = time.perf_counter()
+    openings = find_openings(model, layout, rooms, labelled,
+                             debug_dir=out_dir / "elevations" if args.elevations else None)
+    openings_s = time.perf_counter() - t0
+    elapsed = time.perf_counter() - started
+
+    json_path = write_openings(openings, fs.meta.capture_id, out_dir)
+    img_path = render_plan(rooms, layout, out_dir / "plan_openings.png", openings=openings)
+    counts = {k: sum(o.kind == k for o in openings) for k in ("door", "window", "opening")}
+    print(f"OPENINGS  {fs.meta.capture_id}   {counts['door']} doors, {counts['window']} windows, "
+          f"{counts['opening']} open passages   time {elapsed:.1f} s (openings {openings_s:.1f} s)")
+    print("(widths from depth only; uncertainties fit-only)")
+    for room in rooms:
+        mine = [o for o in openings if o.room_id == room.id]
+        if not mine:
+            continue
+        print(f"\n  {room.name}")
+        for o in mine:
+            to = f" -> {rooms[o.connects_room - 1].name}" if o.connects_room else ""
+            height = f"top {o.height_m:.2f} m" if o.head_observed else f"top >{o.height_m:.2f} m (unseen)"
+            if o.kind == "window":
+                height += f", sill {o.sill_m:.2f} m"
+            print(f"    {o.kind:8s} wall {o.wall_index:2d}  width {o.width_m:.3f} m +-{o.width_sigma_m * 1000:4.1f} mm  "
+                  f"{height}   jambs seen {o.jambs_observed}/2   rays {o.evidence['through_rays']}"
+                  f"{'   COVERED' if o.covered else ''}{'   LOW EVIDENCE' if o.low_evidence else ''}{to}")
+    print(f"\njson   {json_path}\nplan   {img_path}")
+    if args.elevations:
+        print(f"walls  {out_dir / 'elevations'}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="scan", description="Property Scan AI pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -324,6 +376,14 @@ def build_parser() -> argparse.ArgumentParser:
     ms.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
     ms.add_argument("--out", default="outputs", help="output folder")
     ms.set_defaults(func=cmd_measure)
+
+    op = sub.add_parser("openings", help="find doors, windows and open passages with their widths")
+    op.add_argument("capture", help="capture folder")
+    op.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    op.add_argument("--elevations", action="store_true", help="save a front-view debug image of every wall")
+    op.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    op.add_argument("--out", default="outputs", help="output folder")
+    op.set_defaults(func=cmd_openings)
     return parser
 
 
