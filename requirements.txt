@@ -8,5 +8,8 @@ transformers==5.18.0
 huggingface_hub==1.33.0
 safetensors==0.8.0
 
+# Geometry (C5 drift correction: ICP + pose graph)
+open3d==0.20.0
+
 # Dev / tests
 pytest==9.1.1
