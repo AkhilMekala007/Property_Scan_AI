@@ -62,6 +62,12 @@ Fuse the capture into a 3D model and find floor, ceiling and wall planes
 scan structure path/to/capture --device "iPhone 15 Pro"
 ```
 
+Split the capture into rooms, corridors and doorways (writes `rooms.json` and `rooms_debug.png`):
+
+```bash
+scan rooms path/to/capture --device "iPhone 15 Pro"
+```
+
 ## Tests
 
 ```bash
