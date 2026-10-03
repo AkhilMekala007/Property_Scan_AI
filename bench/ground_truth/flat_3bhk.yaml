@@ -28,7 +28,8 @@ rooms:
 mapping:
   lidar_flat: {room_1: room_4, room_2: room_2, room_3: room_3, kitchen: room_5, hall: room_1}
   photos_flat: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
-  video_flat: {}   # filled after the video run (rooms are fragmented)
+  video_flat: {}   # empty on purpose: the video tier's rooms are partial (per-chunk views, 9 overlaps) and none
+                   # can be identified with a tape-measured room without judgement, so every item counts as missed
 
 # Polycam's numbers for the head-to-head (Part 3), from its floor-plan CSV export
 # (data/raw/benchmark/polycam, not published: contains the address). Polycam reports

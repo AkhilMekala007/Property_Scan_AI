@@ -97,3 +97,48 @@ chunks saw the same room, the copy with more observed walls is kept.
 
 **Prediction:** at least 4 of the 5 rooms recovered as separate rooms; matched bedroom walls within
 ±8 % of the tape (median ≤ 5 %), still mostly outside the ±3 % video gate; net area 55–90 m².
+
+## Outcome of attempt 2 (recorded after the run)
+
+**Prediction largely falsified.** 7 rooms, **9 overlapping pairs**, 57.9 m² net (area inside the predicted
+55–90 m², but rooms not recovered): each 32-frame chunk (~30 s of video) sees only part of a room, so
+per-chunk rooms are partial (e.g. 1.9 × 4.5 m, 2.5 × 2.0 m) and the duplicate filter cannot merge
+partial views of the same room. 7 duplicates removed, 1 chunk gave no room.
+
+| Variant | Rooms | Overlaps | Net m² |
+|---|---|---|---|
+| Before: 8-frame chain, fused | 9 | 7 | 50.9 |
+| Attempt 1: 16-frame chain + ICP, fused | 3 | 1 | 31.6 |
+| Attempt 2: per-chunk, placed by chain | 7 | 9 | 57.9 |
+| LiDAR reference | 5 | 0 | 78.8 (tape: hall 36 m²) |
+
+Conclusion so far: the video tier is limited by **metric-scale consistency of monocular depth across
+the walkthrough** (±13–33 % between chunks); neither tighter joins (attempt 1) nor avoiding cross-chunk
+fusion (attempt 2) removes it. A fix needs either a scale-consistent multi-view model over the whole
+video (DA3 on all frames at once: memory-bound on this 8 GB CPU laptop) or a sensor scale reference.
+
+## Attempt 3 — the whole video in one DA3 pass (prediction written before the run)
+
+**Fix:** no chunks: DA3-BASE on 48–80 keyframes spread over the whole walkthrough in one pass (lower
+resolution to fit 8 GB), so every frame shares one scale; metric scale from DA3METRIC on 4 frames.
+
+**Prediction:** 4–6 rooms, ≤ 2 overlapping pairs, net 60–90 m²; matched bedroom walls within ±8 % of
+the tape (median ≤ 5 %); ceilings within ±5 %. Risk: sparse frames (one per 2–3 s) may give rooms with
+few observed walls.
+
+## Outcome of attempt 3 (recorded after the run)
+
+**Prediction falsified.** One DA3 pass over 80 keyframes (596 s end to end — fast): **1 room, 3.8 m²**.
+Diagnosis: the camera path is 16 DA3 units long (≈ 63 m at the measured scale) but spans only
+0.6 × 0.9 units (≈ 2.3 × 3.4 m): with one frame every ~2 s and similar white rooms, DA3 superimposed
+different rooms onto one place. Sparse whole-flat sequences break the multi-view model's
+correspondence; dense chunks (attempts 1–2) keep correspondence but lose scale consistency.
+
+## Decision (time box reached)
+
+Video tier ships with attempt 2 (per-chunk measurement, 16-frame overlap): the most complete plan
+(57.9 m²) and every room measured at a self-consistent scale. Documented as **failing the ±3 % video
+gate**; the structural fix is a scale reference shared across the walkthrough (e.g. the phone's own
+IMU/ARKit odometry, which a plain video file does not record) or a multi-view model with long-range
+memory. The loop's value is the diagnosis: three measured attempts, each prediction recorded before
+its result.

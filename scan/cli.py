@@ -581,8 +581,9 @@ def cmd_bench(args: argparse.Namespace) -> int:
     for kind in ("wall", "ceiling", "opening"):
         k = s[kind]
         if k["total"]:
+            med = s["median_abs_error_m"].get(kind)
             print(f"  {kind:8s} gate passed {k['passed']}/{k['total']}  "
-                  f"median |error| {s['median_abs_error_m'].get(kind, float('nan')) * 100:.1f} cm")
+                  f"median |error| {'n/a (nothing matched)' if med is None else f'{med * 100:.1f} cm'}")
     print(f"  interval coverage {s['interval_coverage']}  (target 0.90)")
     if "head_to_head" in s:
         h = s["head_to_head"]

@@ -293,7 +293,14 @@ def _frames_multiview(mv, images: list[Path], metric: list[np.ndarray], indices:
 def video_fragments_da3(mv, video: Path, capture_id: str, cache_root: Path, device: str | None,
                         cfg: VideoConfig | None = None, n_frames: int = 160, chunk: int = 32, overlap: int = 16,
                         process_res: int = 336, per_chunk: bool = True) -> tuple[CaptureMeta, list[Fragment]]:
-    """Whole video as one fragment: DA3 poses per overlapping chunk, chunks chained by shared frames."""
+    """Video -> fragment(s) with DA3 poses.
+
+    Default (fix-loop attempt 2): overlapping chunks of 32 keyframes chained by shared frames, each
+    chunk measured as its own fragment at its own metric scale and placed with the chained poses.
+    ``chunk == n_frames`` runs one DA3 pass over the whole video (attempt 3: fast, but sparse frames
+    let DA3 superimpose different rooms); ``per_chunk=False`` fuses all chunks (attempt 1: scale
+    drift of 13-33 % between chunks smears walls). See docs/fix_loop.md.
+    """
     from scan.multiview import MultiViewResult, join_chunks
 
     cfg = cfg or VideoConfig()
@@ -328,7 +335,9 @@ def video_fragments_da3(mv, video: Path, capture_id: str, cache_root: Path, devi
             ratio = float(z["metric"])
         else:
             res = mv.infer([images[i] for i in ids], process_res=process_res)
-            ratio = mv.metric_scale([images[i] for i in ids], res, n=1)[0]  # middle-ish frame of the chunk
+            # metric scale: 4 frames for a single pass, 1 per chunk otherwise (DA3METRIC is slow on CPU)
+            rs = mv.metric_scale([images[i] for i in ids], res, n=4 if len(starts) == 1 else 1)
+            ratio = float(np.median(rs))
             np.savez_compressed(path, depth=res.depth.astype(np.float16), conf=res.conf.astype(np.float16),
                                 T=res.T_world_cam, K=res.K, metric=ratio)
         chunks.append((ids, res))
