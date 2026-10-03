@@ -82,6 +82,13 @@ and `plan_openings.png`; `--elevations` also saves a front view of every wall):
 scan openings path/to/capture --device "iPhone 15 Pro"
 ```
 
+Stitch everything into one whole-property plan (writes `plan.json` and `floor_plan.png`;
+exits 1 if rooms still overlap):
+
+```bash
+scan plan path/to/capture --device "iPhone 15 Pro"
+```
+
 ## Tests
 
 ```bash
