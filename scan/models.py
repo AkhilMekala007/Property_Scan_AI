@@ -50,6 +50,20 @@ MODELS: dict[str, ModelSpec] = {
             purpose="Video / photo tiers: metric depth per image",
         ),
         ModelSpec(
+            key="da3-base",
+            repo_id="depth-anything/DA3-BASE",
+            revision="main",
+            licence="Apache-2.0",
+            purpose="Video / photo tiers: camera poses from unposed images (multi-view)",
+        ),
+        ModelSpec(
+            key="da3-metric-large",
+            repo_id="depth-anything/DA3METRIC-LARGE",
+            revision="main",
+            licence="Apache-2.0",
+            purpose="Video / photo tiers: metric scale (focal-aware metric depth)",
+        ),
+        ModelSpec(
             key="owlv2-base",
             repo_id="google/owlv2-base-patch16-ensemble",
             revision="main",

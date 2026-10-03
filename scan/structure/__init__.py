@@ -10,7 +10,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from scan.core.types import FrameSet
+from scan.core.types import FrameSet, Tier
 from scan.semantics.classes import Surface
 from scan.structure.planes import (
     VERTICAL_NY,
@@ -79,7 +79,10 @@ def run_structure(
 ) -> StructureModel:
     cfg = config or StructureConfig()
     t0 = time.perf_counter()
-    grid = fuse(frameset.frames)
+    if frameset.meta.tier is Tier.LIDAR:
+        grid = fuse(frameset.frames)
+    else:  # few frames of estimated depth: every pixel counts, two hits make a voxel
+        grid = fuse(frameset.frames, stride=1, min_count=2)
     t_fuse = time.perf_counter() - t0
 
     stats = StructureStats(

@@ -511,8 +511,13 @@ def cmd_run(args: argparse.Namespace) -> int:
             from scan import fragments as F
 
             if detected.tier is Tier.VIDEO:
-                meta, parts = F.video_fragments(detected.video_path, detected.capture_id, Path(args.cache),
-                                                args.device)
+                mv = F._multiview()
+                if mv is not None:
+                    meta, parts = F.video_fragments_da3(mv, detected.video_path, detected.capture_id,
+                                                        Path(args.cache), args.device)
+                else:
+                    meta, parts = F.video_fragments(detected.video_path, detected.capture_id, Path(args.cache),
+                                                    args.device)
             else:
                 meta, parts = F.photo_fragments(detected.room_dirs, detected.capture_id, Path(args.cache),
                                                 args.device)

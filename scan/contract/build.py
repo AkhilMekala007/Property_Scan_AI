@@ -132,6 +132,8 @@ def build_result(res, runtime_s: float) -> S.Result:
     device = lookup_device(meta.device_model)
     drift = res.drift
     used = [SemanticsConfig().model_key] + ([DetectConfig().model_key] if res.damage else [])
+    if tier != "lidar":  # poses and metric scale for the photo / video tiers
+        used += ["da3-base", "da3-metric-large"]
     return S.Result(
         capture=S.CaptureInfo(
             id=meta.capture_id, tier=tier, source_format=meta.source_format, device=meta.device_model,

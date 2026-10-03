@@ -196,6 +196,168 @@ def video_fragments(video: Path, capture_id: str, cache_root: Path, device: str 
     return meta, fragments
 
 
+# ---------- multi-view poses (DA3) ----------
+
+_MV = None
+
+
+def _multiview():
+    """The DA3 model, or None when the package is not installed (falls back to classical matching)."""
+    global _MV
+    if _MV is None:
+        try:
+            from scan.multiview import MultiViewModel
+
+            _MV = MultiViewModel()
+        except ImportError:
+            _MV = False
+    return _MV or None
+
+
+def _cached_infer(mv, images: list[Path], path: Path):
+    from scan.multiview import MultiViewResult
+
+    key = np.array([p.name for p in images])
+    if path.exists():
+        z = np.load(path)
+        if "names" in z.files and list(z["names"]) == list(key):
+            return MultiViewResult(z["depth"].astype(np.float32), z["conf"].astype(np.float32), z["T"], z["K"])
+    r = mv.infer(images)
+    np.savez_compressed(path, names=key, depth=r.depth.astype(np.float16), conf=r.conf.astype(np.float16),
+                        T=r.T_world_cam, K=r.K)
+    return MultiViewResult(r.depth, r.conf, r.T_world_cam, r.K)
+
+
+def _cached_metric(mv, images: list[Path], result, path: Path) -> list[float]:
+    if path.exists():
+        return [float(x) for x in np.load(path)]
+    ratios = mv.metric_scale(images, result)
+    np.save(path, np.array(ratios))
+    return ratios
+
+
+def _frames_multiview(mv, images: list[Path], metric: list[np.ndarray], indices: list[int], times: list[float],
+                      full_size: tuple[int, int], cfg: VideoConfig, notes: list[str], room_hint: str | None = None,
+                      result=None, poses=None, chunk_scale=None,
+                      depth_size: tuple[int, int] | None = None, ratios: list[float] | None = None) -> list[Frame]:
+    """Frames from DA3 poses + depth; metric scale from the metric depth model.
+
+    Either run DA3 on ``images`` here, or pass ``result`` (one MultiViewResult) or ``poses`` /
+    ``chunk_scale`` (joined chunks: per frame pose and the factor applied to its chunk).
+    """
+    from scan.multiview import MultiViewResult  # noqa: F401
+
+    if result is None and poses is None:
+        result = mv.infer(images)
+    W, H = full_size
+    out_depth = depth_size or ((512, 384) if W >= H else (384, 512))
+    given = ratios is not None
+    ratios, items = (list(ratios) if given else []), []
+    for k in range(len(images)):
+        if result is not None:
+            d3, conf, T, K3 = result.depth[k], result.conf[k], result.T_world_cam[k], result.K[k]
+            f = 1.0
+        else:
+            d3, conf, T, K3 = poses[k]
+            f = chunk_scale[k]
+        d3 = d3 * f
+        if not given:
+            dm = cv2.resize(metric[k], (d3.shape[1], d3.shape[0]), interpolation=cv2.INTER_AREA)
+            ok = np.isfinite(dm) & (d3 > 0.05)
+            if ok.sum() > 100:
+                ratios.append(float(np.median(dm[ok] / d3[ok])))
+        items.append((d3, conf, T, K3))
+    scale = float(np.median(ratios))
+    spread = float(np.median(np.abs(np.array(ratios) / scale - 1)))
+    source = "DA3 metric model" if given else "depth model"
+    notes.append(f"{len(images)} images posed by DA3; metric scale x{scale:.3f} from the {source} "
+                 f"(frame-to-frame spread {spread:.0%})")
+    frames = []
+    for k, (d3, conf, T, K3) in enumerate(items):
+        sx, sy = W / d3.shape[1], H / d3.shape[0]
+        intr = Intrinsics(K3[0, 0] * sx, K3[1, 1] * sy, (K3[0, 2] + 0.5) * sx - 0.5, (K3[1, 2] + 0.5) * sy - 0.5, W, H)
+        depth = cv2.resize(d3 * scale, out_depth, interpolation=cv2.INTER_AREA).astype(np.float32)
+        c = cv2.resize(conf, out_depth, interpolation=cv2.INTER_AREA)
+        conf8 = _confidence(depth)
+        conf8[c < np.percentile(c, 20)] = 0
+        Tm = T.copy()
+        Tm[:3, 3] *= scale
+        frames.append(Frame(indices[k], times[k], intr, Tm, room_hint=room_hint, depth_size=out_depth,
+                            _rgb=lambda p=images[k]: read_rgb(p), _depth=lambda d=depth: d,
+                            _confidence=lambda c=conf8: c,
+                            _depth_sigma=lambda s=(cfg.depth_rel_sigma * depth).astype(np.float32): s))
+    return frames
+
+
+def video_fragments_da3(mv, video: Path, capture_id: str, cache_root: Path, device: str | None,
+                        cfg: VideoConfig | None = None, n_frames: int = 160, chunk: int = 32, overlap: int = 8,
+                        process_res: int = 336) -> tuple[CaptureMeta, list[Fragment]]:
+    """Whole video as one fragment: DA3 poses per overlapping chunk, chunks chained by shared frames."""
+    from scan.multiview import MultiViewResult, join_chunks
+
+    cfg = cfg or VideoConfig()
+    info = probe(video)
+    meta = CaptureMeta(capture_id, Tier.VIDEO, "video_file", video.parent, device_model=device,
+                       n_frames_raw=info.n_frames, duration_s=info.n_frames / info.fps)
+    if device is None:
+        meta.warn("video files do not reliably record the iPhone model; pass --device")
+    cache = cache_root / capture_id / "video"
+    rgb_dir = cache / "rgb"
+    manifest = cache / "keyframes.json"
+    sig = {"video": video.name, "size": video.stat().st_size, "target": cfg.target_keyframes}
+    if manifest.exists() and json.loads(manifest.read_text())["sig"] == sig:
+        keys = [tuple(k) for k in json.loads(manifest.read_text())["keys"]]
+    else:
+        keys = select_keyframes(video, cfg.target_keyframes, rgb_dir)
+        manifest.write_text(json.dumps({"sig": sig, "keys": keys}))
+    picks = np.unique(np.linspace(0, len(keys) - 1, min(n_frames, len(keys))).round().astype(int))
+    keys = [keys[k] for k in picks]
+    images = [rgb_dir / f"{i:06d}.jpg" for i, _ in keys]
+    da3_dir = cache / f"da3_{len(keys)}_{chunk}_{overlap}_{process_res}"
+    da3_dir.mkdir(parents=True, exist_ok=True)
+    step = chunk - overlap
+    starts = list(range(0, max(len(keys) - overlap, 1), step))
+    chunks, metric = [], []
+    for c, a in enumerate(starts):
+        ids = list(range(a, min(a + chunk, len(keys))))
+        path = da3_dir / f"chunk_{c:03d}.npz"
+        if path.exists():
+            z = np.load(path)
+            res = MultiViewResult(z["depth"].astype(np.float32), z["conf"].astype(np.float32), z["T"], z["K"])
+            ratio = float(z["metric"])
+        else:
+            res = mv.infer([images[i] for i in ids], process_res=process_res)
+            ratio = mv.metric_scale([images[i] for i in ids], res, n=1)[0]  # middle-ish frame of the chunk
+            np.savez_compressed(path, depth=res.depth.astype(np.float16), conf=res.conf.astype(np.float16),
+                                T=res.T_world_cam, K=res.K, metric=ratio)
+        chunks.append((ids, res))
+        metric.append(ratio)
+    poses, scales, notes = join_chunks(chunks)
+    # metric ratio per chunk, expressed in the joint frame's units
+    chunk_scale = [scales[ids[-1]] for ids, _ in chunks]  # last frame: posed by this chunk, not the previous
+    joint = [m / s for m, s in zip(metric, chunk_scale)]
+    scale = float(np.median(joint))
+    drift = float(np.max(np.abs(np.array(joint) / scale - 1)))
+    meta.warn(f"DA3 poses: {len(keys)} keyframes in {len(chunks)} chunks; metric scale per chunk varies up to "
+              f"{drift:.0%} along the video (scale drift)")
+    for n in notes:
+        meta.warn(n)
+    items, frame_scale = [], []
+    for ids, res in chunks:
+        for k, i in enumerate(ids):
+            if len(items) > i:
+                continue
+            items.append((res.depth[k], res.conf[k], poses[i], res.K[k]))
+            frame_scale.append(scales[i])
+    notes2: list[str] = []
+    frames = _frames_multiview(mv, images, None, [i for i, _ in keys], [t for _, t in keys],
+                               (info.width, info.height), cfg, notes2, poses=items, chunk_scale=frame_scale,
+                               depth_size=(384, 216), ratios=[scale])
+    frames = _gravity_align(frames)
+    fmeta = replace(meta, warnings=[])
+    return meta, [Fragment("video", _frameset(fmeta, frames, cache_root / capture_id), "; ".join(notes2))]
+
+
 # ---------- photos ----------
 
 def _rigid_fit(A: np.ndarray, B: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -320,25 +482,35 @@ def photo_fragments(room_dirs: dict[str, Path], capture_id: str, cache_root: Pat
                 model = model or DepthModel()
                 np.save(p, model.predict(read_rgb(img_dir / name), depth_size).astype(np.float16))
             depths_all[name] = np.load(p).astype(np.float32)
-        index_of = {n: next_index + k for k, n in enumerate(names)}
+        # per-room numbering and a per-room cache folder: label / damage caches are keyed by frame
+        # index, so indices must mean the same photo whichever rooms are processed together
+        index_of = {n: k for k, n in enumerate(names)}
         time_of = {n: float(index_of[n]) for n in names}
         next_index += len(names)
         notes: list[str] = []
-        K = Intrinsics(focal, focal, w / 2, h / 2, w, h)
-        poses, reg_note = register_photos([img_dir / n for n in names], [depths_all[n] for n in names], K)
-        notes.append(reg_note)
         frames = []
-        for k, name in enumerate(names):
-            if poses[k] is None:
-                continue
-            d = depths_all[name]
-            frames.append(Frame(index_of[name], time_of[name], K, poses[k], room_hint=room, depth_size=depth_size,
-                                _rgb=lambda p=img_dir / name: read_rgb(p), _depth=lambda d=d: d,
-                                _confidence=lambda c=_confidence(d): c,
-                                _depth_sigma=lambda s=(cfg.depth_rel_sigma * d).astype(np.float32): s))
+        mv = _multiview()
+        if mv is not None:
+            images = [img_dir / n for n in names]
+            result = _cached_infer(mv, images, cache / "da3.npz")
+            ratios = _cached_metric(mv, images, result, cache / "da3_metric_scale.npy")
+            frames = _frames_multiview(mv, images, None, [index_of[n] for n in names], [time_of[n] for n in names],
+                                       (w, h), cfg, notes, room_hint=room, result=result, ratios=ratios)
+        else:
+            K = Intrinsics(focal, focal, w / 2, h / 2, w, h)
+            poses, reg_note = register_photos([img_dir / n for n in names], [depths_all[n] for n in names], K)
+            notes.append(reg_note + " (DA3 not installed)")
+            for k, name in enumerate(names):
+                if poses[k] is None:
+                    continue
+                d = depths_all[name]
+                frames.append(Frame(index_of[name], time_of[name], K, poses[k], room_hint=room,
+                                    depth_size=depth_size, _rgb=lambda p=img_dir / name: read_rgb(p),
+                                    _depth=lambda d=d: d, _confidence=lambda c=_confidence(d): c,
+                                    _depth_sigma=lambda s=(cfg.depth_rel_sigma * d).astype(np.float32): s))
         frames = _gravity_align(frames)
         fmeta = CaptureMeta(capture_id, Tier.PHOTO, "photo_folders", folder, device_model=meta.device_model)
-        fs = FrameSet(meta=fmeta, frames=frames, cache_dir=cache_root / capture_id, trajectory=None)
+        fs = FrameSet(meta=fmeta, frames=frames, cache_dir=cache, trajectory=None)
         fragments.append(Fragment(room, fs, "; ".join(notes)))
     return meta, fragments
 
@@ -360,8 +532,14 @@ class FragmentRun:
 def run_fragment(frag: Fragment, keep_largest: bool) -> FragmentRun | None:
     from scan.pipeline import run_pipeline
 
+    from scan.openings import find_openings
+
     try:
-        res = run_pipeline(frag.frameset, upto="openings", drift=False)
+        res = run_pipeline(frag.frameset, upto="measure", drift=False)
+        attached = attach_wall_planes(res.rooms, res.model, res.layout.floor_map.frame)
+        if attached:
+            frag.note += f"; {attached} outline edge(s) linked to nearby wall planes"
+        res.openings = find_openings(res.model, res.layout, res.rooms, res.labelled)
     except Exception as exc:  # a fragment too small to give a room must not stop the capture
         frag.note += f"; no room ({type(exc).__name__}: {exc})"
         return None
@@ -373,6 +551,44 @@ def run_fragment(frag: Fragment, keep_largest: bool) -> FragmentRun | None:
         rooms = [max(rooms, key=lambda r: r.floor_area_m2)]
     ids = {r.id for r in rooms}
     return FragmentRun(frag, res, rooms, [o for o in res.openings if o.room_id in ids])
+
+
+def attach_wall_planes(rooms, model, frame, tol_m: float = 0.2, min_overlap_m: float = 0.3) -> int:
+    """Link outline edges that have no wall to a parallel fitted wall plane running along them.
+
+    With a handful of photos (or a short video) each wall is seen in pieces, so the room outline
+    often comes from the floor's extent rather than from a wall line, and C7b marks the edge
+    inferred. If a wall plane facing into the room lies within ``tol_m`` of the edge and runs
+    along it, the edge is that wall: link it so C8 searches it for doors and windows.
+    """
+    n = 0
+    for room in rooms:
+        pts = np.array(room.corners_uv)
+        centre = pts.mean(axis=0)
+        for k, wm in enumerate(room.walls):
+            if wm.wall_ids or wm.length_m < 0.5:
+                continue
+            a, b = pts[k], pts[(k + 1) % len(pts)]
+            i = 0 if abs(a[0] - b[0]) < 1e-9 else 1  # uv axis constant along the edge
+            coord, lo, hi = a[i], min(a[1 - i], b[1 - i]), max(a[1 - i], b[1 - i])
+            inward = 1.0 if centre[i] > coord else -1.0
+            best = None
+            for w in model.walls:
+                nuv = frame.xz_to_uv(np.array([w.normal_xz]))[0]
+                if nuv[i] * inward < 0.95:
+                    continue
+                ends = frame.xz_to_uv(np.array([w.start_xz, w.end_xz]))
+                pos = float(ends[:, i].mean())
+                overlap = min(hi, ends[:, 1 - i].max()) - max(lo, ends[:, 1 - i].min())
+                if abs(pos - coord) <= tol_m and overlap >= min_overlap_m:
+                    if best is None or overlap > best[0]:
+                        best = (overlap, w)
+            if best is not None:
+                wm.wall_ids = [best[1].id]
+                wm.inferred = False
+                wm.coverage = round(min(1.0, best[0] / max(wm.length_m, 1e-6)), 3)
+                n += 1
+    return n
 
 
 # ---------- placing fragments by doors ----------
