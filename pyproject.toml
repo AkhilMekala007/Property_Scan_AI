@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "property-scan-ai"
+version = "0.1.0"
+description = "Handheld iPhone capture -> stitched, dimensioned floor plan with damage, scope and calibrated intervals"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.0",
+    "opencv-python-headless>=4.10",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+scan = "scan.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["scan*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "sample: runs on the provided sample captures (slow; needs the data folders locally)",
+]
+addopts = "-m 'not sample'"

@@ -1,0 +1,6 @@
+# Pinned versions verified on Windows 11 / Python 3.14 (CPU only).
+numpy==2.5.3
+opencv-python-headless==5.0.0.93
+
+# Dev / tests
+pytest==9.1.1
