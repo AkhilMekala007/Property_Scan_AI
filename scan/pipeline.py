@@ -1,7 +1,7 @@
 """The LiDAR-tier pipeline as one function, so every command runs the same chain.
 
 ingest -> C3 QC -> C5 drift correction -> C4 semantics -> C7a structure
-       -> C6 rooms -> C7b measurement -> C8 openings -> C9 stitching
+       -> C6 rooms -> C7b measurement -> C8 openings -> C9 stitching -> C10 damage -> C11 rules
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import numpy as np
 
 from scan.core.types import FrameSet
 
-STAGES = ("qc", "drift", "semantics", "structure", "rooms", "measure", "openings", "plan")
+STAGES = ("qc", "drift", "semantics", "structure", "rooms", "measure", "openings", "plan", "damage")
 
 
 @dataclass
@@ -26,6 +26,9 @@ class PipelineResult:
     rooms: list = field(default_factory=list)
     openings: list = field(default_factory=list)
     plan: object = None  # PropertyPlan
+    damage: object = None  # DamageResult
+    flags: list = field(default_factory=list)
+    scope: list = field(default_factory=list)
 
 
 def run_pipeline(frameset: FrameSet, upto: str = "plan", drift: bool = True) -> PipelineResult:
@@ -67,6 +70,12 @@ def run_pipeline(frameset: FrameSet, upto: str = "plan", drift: bool = True) -> 
         from scan.stitch import stitch
 
         res.plan = stitch(res.rooms, res.openings, res.layout)
+    if stop >= STAGES.index("damage"):
+        from scan.damage import detect_damage
+        from scan.rules import apply_rules
+
+        res.damage = detect_damage(frames, res.plan.rooms, res.model, res.layout.floor_map.frame)
+        res.flags, res.scope = apply_rules(res.damage.regions, res.plan.rooms)
     return res
 
 

@@ -16,6 +16,9 @@ dependencies = [
     "huggingface_hub>=0.25",
     "safetensors>=0.4",
     "open3d>=0.18",
+    "pillow>=10",
+    "scipy>=1.11",
+    "PyYAML>=6",
 ]
 
 [project.optional-dependencies]

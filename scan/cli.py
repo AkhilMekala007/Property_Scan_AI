@@ -454,6 +454,43 @@ def cmd_repeat(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_damage(args: argparse.Namespace) -> int:
+    import json
+    from dataclasses import asdict
+
+    from scan.pipeline import run_pipeline
+    from scan.rules import to_dicts
+
+    started = time.perf_counter()
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    res = run_pipeline(fs, upto="damage", drift=not args.no_drift_fix)
+    d = res.damage
+    out_dir = Path(args.out) / fs.meta.capture_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "damage.json").write_text(json.dumps(
+        {"damage": [asdict(r) for r in d.regions], **to_dicts(res.flags, res.scope),
+         "diagnostics": {"frames_scanned": d.frames_scanned, "frames_from_cache": d.frames_from_cache,
+                         "detections": d.detections, "views_measured": d.views_measured, "dropped": d.dropped}},
+        indent=2), encoding="utf-8")
+    print(f"DAMAGE  {fs.meta.capture_id}   {len(d.regions)} region(s), {len(res.flags)} flag(s), "
+          f"{len(res.scope)} scope item(s)   time {time.perf_counter() - started:.1f} s")
+    print(f"scanned {d.frames_scanned} frames ({d.frames_from_cache} from cache): {d.detections} detections above "
+          f"threshold, {d.views_measured} measured on a surface; dropped {d.dropped or 'none'}")
+    for r in d.regions:
+        print(f"  #{r.id} {r.cls:11s} on {r.surface:18s} area {r.area_m2:.3f} m2 +-{r.area_sigma_m2:.3f}  "
+              f"length {r.length_m:.2f} m  views {r.n_views}  confidence {r.confidence:.2f}")
+    for f in res.flags:
+        print(f"  FLAG [{f.severity}] {f.rule_id} on {f.surface}: {f.reason}")
+    for s in res.scope:
+        print(f"  SCOPE {s.item}: {s.qty:.2f} +-{s.qty_sigma:.2f} {s.unit}  ({s.surface}, {s.rule_id})")
+    print(f"json   {out_dir / 'damage.json'}")
+    return 0
+
+
 def _footprint_overlay(off, on, out_path):
     """Room outlines from both runs on one canvas in world coordinates: red = off, green = on."""
     import cv2
@@ -561,6 +598,14 @@ def build_parser() -> argparse.ArgumentParser:
     rp.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
     rp.add_argument("--out", default="outputs", help="output folder")
     rp.set_defaults(func=cmd_repeat)
+
+    dm = sub.add_parser("damage", help="detect and measure damage, then apply flag/scope rules")
+    dm.add_argument("capture", help="capture folder")
+    dm.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    dm.add_argument("--no-drift-fix", action="store_true")
+    dm.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    dm.add_argument("--out", default="outputs", help="output folder")
+    dm.set_defaults(func=cmd_damage)
     return parser
 
 

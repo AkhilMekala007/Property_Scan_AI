@@ -24,7 +24,7 @@ python -m venv .venv
 .venv/Scripts/activate        # Windows; use .venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
 pip install -e .
-python scripts/fetch_weights.py   # one-time model download (~125 MB); the pipeline itself runs offline
+python scripts/fetch_weights.py   # one-time model download (~1.3 GB with all registered models); the pipeline itself runs offline
 ```
 
 Models used so far (weights in `weights/`, never committed):
@@ -33,6 +33,8 @@ Models used so far (weights in `weights/`, never committed):
 |---|---|---|
 | SegFormer-B2, ADE20K (`nvidia/segformer-b2-finetuned-ade-512-512`) | Surface labels: wall, floor, ceiling, door, window, mirror | NVIDIA Source Code License (non-commercial) |
 | SegFormer-B0, ADE20K | Faster alternative (`--model segformer-b0-ade`) | same |
+| OWL-ViT B/32 (`google/owlvit-base-patch32`) | Damage detection from text prompts | Apache-2.0 |
+| OWLv2 base, SAM 2.1 tiny | Registered alternatives (slower on CPU; not used by default) | Apache-2.0 |
 
 ## Usage (so far)
 
@@ -101,6 +103,13 @@ Repeatability under tiny pose perturbations (room counts, area / wall / opening 
 
 ```bash
 scan repeat path/to/capture --runs 3
+```
+
+Detect and measure damage, then apply the concealed-damage and scope rules
+(`rules/damage_rules.yaml`; writes `damage.json`):
+
+```bash
+scan damage path/to/capture --device "iPhone 15 Pro"
 ```
 
 ## Tests
