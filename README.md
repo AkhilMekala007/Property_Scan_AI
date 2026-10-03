@@ -24,7 +24,15 @@ python -m venv .venv
 .venv/Scripts/activate        # Windows; use .venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
 pip install -e .
+python scripts/fetch_weights.py   # one-time model download (~125 MB); the pipeline itself runs offline
 ```
+
+Models used so far (weights in `weights/`, never committed):
+
+| Model | Purpose | Licence |
+|---|---|---|
+| SegFormer-B2, ADE20K (`nvidia/segformer-b2-finetuned-ade-512-512`) | Surface labels: wall, floor, ceiling, door, window, mirror | NVIDIA Source Code License (non-commercial) |
+| SegFormer-B0, ADE20K | Faster alternative (`--model segformer-b0-ade`) | same |
 
 ## Usage (so far)
 
@@ -33,6 +41,18 @@ prints a summary. `--topdown` also saves a top-down sanity render to `outputs/`.
 
 ```bash
 scan inspect path/to/capture --topdown
+```
+
+Quality-check a capture (writes `outputs/<capture>/qc_report.md`):
+
+```bash
+scan qc path/to/capture --device "iPhone 15 Pro"
+```
+
+Label surfaces in each frame (writes overlays and `semantics_summary.json`):
+
+```bash
+scan labels path/to/capture --device "iPhone 15 Pro"
 ```
 
 ## Tests
