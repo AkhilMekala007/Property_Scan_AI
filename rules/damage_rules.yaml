@@ -1,0 +1,104 @@
+# C11 damage rules: concealed-damage flags and scope line items.
+#
+# Every damage region is checked against every rule; each rule that matches adds its flag
+# (with the rule id, so the output says why) and its scope items, keyed to the damaged surface.
+#
+# Conditions (all optional, all must hold):
+#   class:          list of damage classes (water_stain, crack, mold)
+#   surface:        list of surface kinds (wall, floor, ceiling)
+#   min_area_m2 / max_area_m2
+#   min_length_m / max_length_m      (longest extent, used for cracks)
+#   max_bottom_m / min_bottom_m      (walls: lowest point of the damage above the floor)
+#
+# Quantity formulas may use: area, length, surface_area, wall_length, ceiling_height,
+# room_area, plus numbers, + - * /, min(), max(), ceil(). Uncertainty is propagated from
+# the damage area's sigma.
+
+version: 1
+
+rules:
+  - id: R01_ceiling_water_stain
+    when: {class: [water_stain], surface: [ceiling]}
+    flag:
+      severity: high
+      reason: Water stain on the ceiling - water has come from above (roof, plumbing or a wet room overhead).
+      recommendation: Trace and fix the leak source; check joists and insulation above the stain for concealed rot or saturation before closing up.
+    scope:
+      - {item: Investigate and repair leak source above ceiling, qty: "1", unit: ea}
+      - {item: Cut out and replace water-damaged ceiling board, qty: "max(0.5, area * 1.3)", unit: m2}
+      - {item: Stain-blocking primer and repaint full ceiling, qty: "surface_area", unit: m2}
+
+  - id: R02_wall_water_stain_low
+    when: {class: [water_stain], surface: [wall], max_bottom_m: 0.3}
+    flag:
+      severity: high
+      reason: Water stain starting at floor level - rising damp or a leak at the floor/wall junction.
+      recommendation: Take moisture readings at skirting height; inspect skirting, subfloor and the wall cavity behind the stain.
+    scope:
+      - {item: Moisture meter survey of wall base and subfloor, qty: "1", unit: ea}
+      - {item: Remove and replace skirting board, qty: "max(1.0, sqrt(area) * 1.5)", unit: m}
+      - {item: Cut out and replace damp wall lining, qty: "max(0.5, area * 1.3)", unit: m2}
+      - {item: Stain-blocking primer and repaint wall, qty: "surface_area", unit: m2}
+
+  - id: R03_wall_water_stain_high
+    when: {class: [water_stain], surface: [wall], min_bottom_m: 0.3}
+    flag:
+      severity: medium
+      reason: Water stain mid-wall - possible leak inside the wall cavity (pipe, window or roof run-off).
+      recommendation: Inspect the cavity behind the stain and the window or roof line above it.
+    scope:
+      - {item: Open up and inspect wall cavity behind stain, qty: "1", unit: ea}
+      - {item: Patch wall lining, qty: "max(0.5, area * 1.3)", unit: m2}
+      - {item: Stain-blocking primer and repaint wall, qty: "surface_area", unit: m2}
+
+  - id: R04_floor_water_stain
+    when: {class: [water_stain], surface: [floor]}
+    flag:
+      severity: medium
+      reason: Water mark on the floor - liquid may have soaked into the subfloor.
+      recommendation: Check the subfloor for moisture and swelling under and around the mark.
+    scope:
+      - {item: Subfloor moisture inspection, qty: "1", unit: ea}
+      - {item: Replace affected floor finish, qty: "max(1.0, area * 1.5)", unit: m2}
+
+  - id: R05_long_or_ceiling_crack
+    when: {class: [crack], min_length_m: 1.0}
+    flag:
+      severity: high
+      reason: Long crack - may indicate structural movement rather than surface shrinkage.
+      recommendation: Have a structural engineer assess; monitor crack width over time.
+    scope:
+      - {item: Structural engineer inspection, qty: "1", unit: ea}
+      - {item: "Crack repair: rake out, fill and tape", qty: "length", unit: m}
+      - {item: Repaint surface, qty: "surface_area", unit: m2}
+
+  - id: R06_ceiling_crack
+    when: {class: [crack], surface: [ceiling], max_length_m: 1.0}
+    flag:
+      severity: medium
+      reason: Crack in the ceiling - check for loading or water above.
+      recommendation: Inspect the ceiling void above the crack.
+    scope:
+      - {item: "Crack repair: rake out, fill and tape", qty: "max(0.5, length)", unit: m}
+      - {item: Repaint ceiling, qty: "surface_area", unit: m2}
+
+  - id: R07_short_wall_crack
+    when: {class: [crack], surface: [wall, floor], max_length_m: 1.0}
+    flag:
+      severity: low
+      reason: Short surface crack - likely cosmetic shrinkage.
+      recommendation: Fill and repaint; recheck if it reopens.
+    scope:
+      - {item: "Crack repair: fill and sand", qty: "max(0.5, length)", unit: m}
+      - {item: Repaint wall, qty: "surface_area", unit: m2}
+
+  - id: R08_mold
+    when: {class: [mold]}
+    flag:
+      severity: high
+      reason: Visible mold - persistent moisture; mold usually extends behind the surface beyond what is visible.
+      recommendation: Find and fix the moisture source; remove affected material with a margin.
+    scope:
+      - {item: Find and fix moisture source, qty: "1", unit: ea}
+      - {item: Mold remediation including margin, qty: "max(1.0, area * 2.0)", unit: m2}
+      - {item: Antimicrobial primer and repaint, qty: "surface_area", unit: m2}
