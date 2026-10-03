@@ -97,6 +97,12 @@ both floor plans and an overlay):
 scan drift path/to/capture
 ```
 
+Repeatability under tiny pose perturbations (room counts, area / wall / opening spread):
+
+```bash
+scan repeat path/to/capture --runs 3
+```
+
 ## Tests
 
 ```bash
