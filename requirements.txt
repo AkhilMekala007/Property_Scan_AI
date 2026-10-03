@@ -2,5 +2,11 @@
 numpy==2.5.3
 opencv-python-headless==5.0.0.93
 
+# Models (C4 onwards). torch from PyPI is the CPU build on Windows.
+torch==2.14.1
+transformers==5.18.0
+huggingface_hub==1.33.0
+safetensors==0.8.0
+
 # Dev / tests
 pytest==9.1.1
