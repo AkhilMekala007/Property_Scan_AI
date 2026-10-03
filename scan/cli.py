@@ -139,6 +139,56 @@ def cmd_labels(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_structure(args: argparse.Namespace) -> int:
+    from scan.qc import run_qc
+    from scan.semantics import run_semantics
+    from scan.structure import render_structure, run_structure, write_structure
+
+    started = time.perf_counter()
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    qc = run_qc(fs)
+    cov = qc.report.coverage
+    labelled = run_semantics(qc.frameset).frameset
+    model = run_structure(labelled, floor_hint_y=cov.floor_y, ceiling_seen=cov.ceiling_seen)
+    elapsed = time.perf_counter() - started
+
+    out_dir = Path(args.out) / fs.meta.capture_id
+    json_path = write_structure(model, out_dir)
+    img_path = render_structure(model, out_dir / "structure_debug.png")
+
+    print(f"STRUCTURE  {model.capture_id}   voxels {model.n_voxels:,} at {model.voxel_size_m * 100:.0f} cm   "
+          f"time {elapsed:.1f} s (fusion {model.timings_s['fuse']:.1f} s)")
+    lc = model.label_counts
+    print(f"voxel labels   wall {lc['wall']:,}  floor {lc['floor']:,}  ceiling {lc['ceiling']:,}  "
+          f"door {lc['door']:,}  window {lc['window']:,}  other {lc['other']:,}  unknown {lc['unknown']:,}")
+    print(f"removed        mirror {model.stats.n_mirror_voxels:,}  person {model.stats.n_person_voxels:,}")
+    print(f"main wall direction {model.manhattan_deg:.1f} deg   wall directions found {model.stats.families_deg}")
+    f = model.floor
+    if f is not None:
+        print(f"floor          tilt {f.tilt_deg:.2f} deg   fit spread {f.rms_m * 1000:.1f} mm   "
+              f"area seen {f.area_m2:.1f} m2")
+    heights = model.ceiling_heights()
+    if heights:
+        for k, (hgt, sig, area) in enumerate(heights):
+            print(f"ceiling {k + 1}      {hgt:.3f} m above floor  ({area:.1f} m2; fit-only +-{sig * 1000:.2f} mm, excludes depth bias and drift)")
+    else:
+        print(f"ceiling        none ({model.ceiling_note})")
+    s = model.stats
+    share = s.n_wall_voxels_assigned / s.n_wall_voxels if s.n_wall_voxels else 0
+    print(f"walls          {len(model.walls)} planes, {share:.0%} of wall voxels explained")
+    for wall in sorted(model.walls, key=lambda w: -w.area_seen_m2)[: args.show]:
+        print(f"  #{wall.id:<3d} dir {wall.angle_deg:6.1f} deg{' (snapped)' if wall.snapped else '          '}"
+              f"  seen {wall.length_seen_m:4.2f} m x {wall.y_max - wall.y_min:4.2f} m  "
+              f"coverage {wall.coverage:4.0%}  fit spread {wall.rms_m * 1000:4.1f} mm  "
+              f"offset +-{wall.sigma_m * 1000:.2f} mm")
+    print(f"json   {json_path}\nimage  {img_path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="scan", description="Property Scan AI pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -168,6 +218,14 @@ def build_parser() -> argparse.ArgumentParser:
     lb.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
     lb.add_argument("--out", default="outputs", help="output folder")
     lb.set_defaults(func=cmd_labels)
+
+    st = sub.add_parser("structure", help="fuse frames and find floor, ceiling and wall planes")
+    st.add_argument("capture", help="capture folder")
+    st.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    st.add_argument("--show", type=int, default=12, help="number of largest walls to list")
+    st.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    st.add_argument("--out", default="outputs", help="output folder")
+    st.set_defaults(func=cmd_structure)
     return parser
 
 

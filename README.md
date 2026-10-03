@@ -55,6 +55,13 @@ Label surfaces in each frame (writes overlays and `semantics_summary.json`):
 scan labels path/to/capture --device "iPhone 15 Pro"
 ```
 
+Fuse the capture into a 3D model and find floor, ceiling and wall planes
+(writes `structure.json` and a top-down `structure_debug.png`):
+
+```bash
+scan structure path/to/capture --device "iPhone 15 Pro"
+```
+
 ## Tests
 
 ```bash
