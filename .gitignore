@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Model weights & large binaries (fetched by script, never committed)
+weights/
+*.pt
+*.pth
+*.onnx
+*.ckpt
+*.safetensors
+
+# Raw captures & run outputs (published separately / regenerated)
+data/raw/
+outputs/
+*.mov
+*.MOV
+*.mp4
+
+# Secrets
+.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
