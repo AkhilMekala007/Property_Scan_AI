@@ -68,6 +68,27 @@ Split the capture into rooms, corridors and doorways (writes `rooms.json` and `r
 scan rooms path/to/capture --device "iPhone 15 Pro"
 ```
 
+Measure every room: wall lengths, floor area, ceiling height with uncertainties
+(writes `measurements.json` and a dimensioned `plan.png`):
+
+```bash
+scan measure path/to/capture --device "iPhone 15 Pro"
+```
+
+Find doors, windows and open passages with widths and heights (writes `openings.json`
+and `plan_openings.png`; `--elevations` also saves a front view of every wall):
+
+```bash
+scan openings path/to/capture --device "iPhone 15 Pro"
+```
+
+Stitch everything into one whole-property plan (writes `plan.json` and `floor_plan.png`;
+exits 1 if rooms still overlap):
+
+```bash
+scan plan path/to/capture --device "iPhone 15 Pro"
+```
+
 ## Tests
 
 ```bash

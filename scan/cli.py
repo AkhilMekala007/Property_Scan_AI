@@ -230,6 +230,158 @@ def cmd_rooms(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_measure(args: argparse.Namespace) -> int:
+    from scan.measure import measure_rooms, render_plan, write_measurements
+    from scan.qc import run_qc
+    from scan.rooms import segment_rooms
+    from scan.semantics import run_semantics
+    from scan.structure import run_structure
+
+    started = time.perf_counter()
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    qc = run_qc(fs)
+    cov = qc.report.coverage
+    labelled = run_semantics(qc.frameset).frameset
+    model = run_structure(labelled, floor_hint_y=cov.floor_y, ceiling_seen=cov.ceiling_seen)
+    layout = segment_rooms(model, fs.trajectory)
+    rooms, diag = measure_rooms(model, layout)
+    elapsed = time.perf_counter() - started
+
+    out_dir = Path(args.out) / fs.meta.capture_id
+    json_path = write_measurements(rooms, diag, fs.meta.capture_id, out_dir)
+    img_path = render_plan(rooms, layout, out_dir / "plan.png")
+
+    total = sum(r.floor_area_m2 for r in rooms)
+    print(f"MEASURE  {fs.meta.capture_id}   {len(rooms)} rooms, {total:.2f} m2 total   time {elapsed:.1f} s")
+    print("(uncertainties are fit-only; calibration adds depth bias and drift)")
+    for r in rooms:
+        ceiling = (f"ceiling {r.ceiling_height_m:.3f} m +-{r.ceiling_sigma_m * 1000:.1f} mm"
+                   if r.ceiling_height_m is not None else f"ceiling n/a ({r.ceiling_note})")
+        print(f"\n  {r.name}  ({r.kind})   area {r.floor_area_m2:.2f} m2 +-{r.floor_area_sigma_m2:.3f}   "
+              f"perimeter {r.perimeter_m:.2f} m   {ceiling}   floor tilt {r.floor_tilt_deg:.2f} deg")
+        for wm in r.walls:
+            flag = "  INFERRED" if wm.inferred else ""
+            print(f"    wall {wm.index:2d}  {wm.length_m:5.2f} m +-{wm.sigma_m * 1000:5.1f} mm   "
+                  f"seen {wm.coverage:4.0%}   planes {wm.wall_ids}{flag}")
+    if diag["walls_not_axis_aligned"]:
+        print(f"\n  note: {diag['walls_not_axis_aligned']} wall planes are not right-angled and were not used")
+    print(f"\njson   {json_path}\nplan   {img_path}")
+    return 0
+
+
+def cmd_openings(args: argparse.Namespace) -> int:
+    from scan.measure import measure_rooms, render_plan
+    from scan.openings import find_openings, write_openings
+    from scan.qc import run_qc
+    from scan.rooms import segment_rooms
+    from scan.semantics import run_semantics
+    from scan.structure import run_structure
+
+    started = time.perf_counter()
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    qc = run_qc(fs)
+    cov = qc.report.coverage
+    labelled = run_semantics(qc.frameset).frameset
+    model = run_structure(labelled, floor_hint_y=cov.floor_y, ceiling_seen=cov.ceiling_seen)
+    layout = segment_rooms(model, fs.trajectory)
+    rooms, _ = measure_rooms(model, layout)
+    out_dir = Path(args.out) / fs.meta.capture_id
+    t0 = time.perf_counter()
+    openings = find_openings(model, layout, rooms, labelled,
+                             debug_dir=out_dir / "elevations" if args.elevations else None)
+    openings_s = time.perf_counter() - t0
+    elapsed = time.perf_counter() - started
+
+    json_path = write_openings(openings, fs.meta.capture_id, out_dir)
+    img_path = render_plan(rooms, layout, out_dir / "plan_openings.png", openings=openings)
+    counts = {k: sum(o.kind == k for o in openings) for k in ("door", "window", "opening")}
+    print(f"OPENINGS  {fs.meta.capture_id}   {counts['door']} doors, {counts['window']} windows, "
+          f"{counts['opening']} open passages   time {elapsed:.1f} s (openings {openings_s:.1f} s)")
+    print("(widths from depth only; uncertainties fit-only)")
+    for room in rooms:
+        mine = [o for o in openings if o.room_id == room.id]
+        if not mine:
+            continue
+        print(f"\n  {room.name}")
+        for o in mine:
+            to = f" -> {rooms[o.connects_room - 1].name}" if o.connects_room else ""
+            height = f"top {o.height_m:.2f} m" if o.head_observed else f"top >{o.height_m:.2f} m (unseen)"
+            if o.kind == "window":
+                height += f", sill {o.sill_m:.2f} m"
+            print(f"    {o.kind:8s} wall {o.wall_index:2d}  width {o.width_m:.3f} m +-{o.width_sigma_m * 1000:4.1f} mm  "
+                  f"{height}   jambs seen {o.jambs_observed}/2   rays {o.evidence['through_rays']}"
+                  f"{'   COVERED' if o.covered else ''}{'   LOW EVIDENCE' if o.low_evidence else ''}{to}")
+    print(f"\njson   {json_path}\nplan   {img_path}")
+    if args.elevations:
+        print(f"walls  {out_dir / 'elevations'}")
+    return 0
+
+
+def cmd_plan(args: argparse.Namespace) -> int:
+    from scan.measure import measure_rooms
+    from scan.openings import find_openings
+    from scan.qc import run_qc
+    from scan.rooms import segment_rooms
+    from scan.semantics import run_semantics
+    from scan.stitch import stitch, write_plan
+    from scan.stitch.render import render_floor_plan
+    from scan.structure import run_structure
+
+    started = time.perf_counter()
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    qc = run_qc(fs)
+    cov = qc.report.coverage
+    labelled = run_semantics(qc.frameset).frameset
+    model = run_structure(labelled, floor_hint_y=cov.floor_y, ceiling_seen=cov.ceiling_seen)
+    layout = segment_rooms(model, fs.trajectory)
+    rooms, _ = measure_rooms(model, layout)
+    openings = find_openings(model, layout, rooms, labelled)
+    plan = stitch(rooms, openings, layout)
+    elapsed = time.perf_counter() - started
+
+    out_dir = Path(args.out) / fs.meta.capture_id
+    json_path = write_plan(plan, out_dir)
+    img_path = render_floor_plan(plan, layout.floor_map.frame, out_dir / "floor_plan.png")
+    names = {r.id: r.name for r in plan.rooms}
+
+    print(f"PLAN  {plan.capture_id}   {len(plan.rooms)} rooms   net {plan.net_area_m2:.2f} m2   "
+          f"footprint {plan.footprint_m2:.2f} m2   time {elapsed:.1f} s")
+    print(f"shared walls {len(plan.shared_walls)}   median wall thickness "
+          f"{plan.diagnostics['median_wall_thickness_m'] * 100:.1f} cm")
+    print(f"openings {len(plan.openings)} "
+          f"({sum(o.views == 2 for o in plan.openings)} measured from both sides, "
+          f"{sum(o.views_agree is False for o in plan.openings)} disagreeing)")
+    print(f"connected: {'yes' if plan.connected_components == 1 else f'NO ({plan.connected_components} groups)'}   "
+          f"overlaps: {'none' if not plan.overlaps else plan.overlaps}")
+    if plan.adjusted_edges:
+        print(f"moved {len(plan.adjusted_edges)} inferred edge(s) out of neighbours: "
+              + ", ".join(f"{names[r]} edge {k} by {m:.2f} m" for r, k, m in plan.adjusted_edges))
+    if plan.unmeasured_doorways:
+        print(f"doorways with no measured opening: {plan.unmeasured_doorways}")
+    print("\nadjacency")
+    for a, b, kind in plan.adjacency:
+        print(f"  {names[a]} <-> {names[b]}  ({kind})")
+    print("\nopenings")
+    for o in plan.openings:
+        where = " <-> ".join(names[r] for r in o.rooms)
+        both = f"  views agree: {o.views_agree}" if o.views == 2 else ""
+        print(f"  {o.kind:8s} {where:28s} width {o.width_m:.3f} m +-{o.width_sigma_m * 1000:4.1f} mm{both}")
+    print(f"\njson   {json_path}\nplan   {img_path}")
+    return 0 if not plan.overlaps else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="scan", description="Property Scan AI pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -274,6 +426,28 @@ def build_parser() -> argparse.ArgumentParser:
     rm.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
     rm.add_argument("--out", default="outputs", help="output folder")
     rm.set_defaults(func=cmd_rooms)
+
+    ms = sub.add_parser("measure", help="measure each room: wall lengths, floor area, ceiling height")
+    ms.add_argument("capture", help="capture folder")
+    ms.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    ms.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    ms.add_argument("--out", default="outputs", help="output folder")
+    ms.set_defaults(func=cmd_measure)
+
+    op = sub.add_parser("openings", help="find doors, windows and open passages with their widths")
+    op.add_argument("capture", help="capture folder")
+    op.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    op.add_argument("--elevations", action="store_true", help="save a front-view debug image of every wall")
+    op.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    op.add_argument("--out", default="outputs", help="output folder")
+    op.set_defaults(func=cmd_openings)
+
+    pl = sub.add_parser("plan", help="stitch rooms into one whole-property floor plan")
+    pl.add_argument("capture", help="capture folder")
+    pl.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    pl.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    pl.add_argument("--out", default="outputs", help="output folder")
+    pl.set_defaults(func=cmd_plan)
     return parser
 
 
