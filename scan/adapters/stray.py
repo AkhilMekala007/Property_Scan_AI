@@ -25,7 +25,7 @@ import numpy as np
 
 from scan.adapters.base import AdapterConfig, KeyframeConfig, LidarNoiseModel
 from scan.core.geometry import pose_matrix, quat_to_rotmat, rotation_angle_deg
-from scan.core.types import CaptureMeta, Frame, FrameSet, Intrinsics
+from scan.core.types import CaptureMeta, Frame, FrameSet, Intrinsics, Trajectory
 from scan.ingest.detect import DetectedCapture
 from scan.io.video import extract_frames, probe, read_rgb
 
@@ -97,7 +97,14 @@ class StrayScannerAdapter:
                     ),
                 )
             )
-        return FrameSet(meta=meta, frames=frames, cache_dir=cache_root / meta.capture_id)
+        trajectory = Trajectory(
+            timestamps=np.asarray(ts, dtype=np.float64),
+            positions=np.asarray(positions, dtype=np.float64),
+            rotations=np.stack(rotations),
+        )
+        return FrameSet(
+            meta=meta, frames=frames, cache_dir=cache_root / meta.capture_id, trajectory=trajectory
+        )
 
 
 def read_odometry(path: Path) -> dict[str, np.ndarray]:
