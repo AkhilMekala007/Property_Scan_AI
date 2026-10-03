@@ -88,6 +88,7 @@ class Frame:
     T_world_cam: np.ndarray | None = None  # None when poses are unknown (photo tier)
     room_hint: str | None = None  # photo tier: folder name
     depth_size: tuple[int, int] | None = None  # (width, height) of depth maps
+    rgb_ok: bool = True  # False when QC found the image blurry; depth may still be fine
     _rgb: ArrayLoader | None = field(default=None, repr=False)
     _depth: ArrayLoader | None = field(default=None, repr=False)
     _confidence: ArrayLoader | None = field(default=None, repr=False)
@@ -123,10 +124,27 @@ class Frame:
 
 
 @dataclass
+class Trajectory:
+    """Camera path at full capture rate (every raw frame, not just keyframes)."""
+
+    timestamps: np.ndarray  # (N,) seconds
+    positions: np.ndarray  # (N, 3) world metres
+    rotations: np.ndarray  # (N, 3, 3) camera-to-world
+
+    def __len__(self) -> int:
+        return len(self.timestamps)
+
+
+@dataclass
 class FrameSet:
     meta: CaptureMeta
     frames: list[Frame]
     cache_dir: Path | None = None
+    trajectory: Trajectory | None = None  # None when poses are unknown
+
+    def with_frames(self, frames: list[Frame]) -> FrameSet:
+        """Same capture, different frame selection."""
+        return FrameSet(self.meta, frames, self.cache_dir, self.trajectory)
 
     def __len__(self) -> int:
         return len(self.frames)
