@@ -94,6 +94,51 @@ def cmd_qc(args: argparse.Namespace) -> int:
     return 1 if report.has_errors else 0
 
 
+def cmd_labels(args: argparse.Namespace) -> int:
+    import json
+
+    from scan.models import WeightsMissingError
+    from scan.qc import run_qc
+    from scan.semantics import SemanticsConfig, run_semantics, write_overlays
+
+    started = time.perf_counter()
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    fs = run_qc(fs).frameset
+    cfg = SemanticsConfig(model_key=args.model, short_side=args.short_side, max_frames=args.max_frames)
+    try:
+        result = run_semantics(fs, cfg)
+    except WeightsMissingError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    elapsed = time.perf_counter() - started
+    s = result.summary
+
+    out_dir = Path(args.out) / fs.meta.capture_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "semantics_summary.json").write_text(json.dumps(s.to_dict(), indent=2), encoding="utf-8")
+
+    print(f"LABELS  {s.capture_id}   model {s.model}")
+    print(f"labelled {s.n_frames_labelled} frames ({s.n_frames_from_cache} from cache)   time {elapsed:.1f} s")
+    shares = "  ".join(f"{k} {v:.0%}" for k, v in s.class_shares.items() if v >= 0.005)
+    print(f"pixel shares   {shares}")
+    print(f"mirror seen in {s.mirror_frames} frames")
+    print("label vs geometry agreement:")
+    for name, stats in s.agreement.items():
+        value = "n/a" if stats["agreement"] is None else f"{stats['agreement']:.0%}"
+        print(f"  {name:8s} {value:>5s}   ({stats['pixels']} px checked)")
+    for issue in s.issues:
+        print(f" [{'!' if issue.severity == 'warning' else 'i'}] {issue.code}: {issue.message}")
+    if args.overlays:
+        paths = write_overlays(result.frameset, out_dir / "labels", count=args.overlays)
+        print(f"overlays  {out_dir / 'labels'}  ({len(paths)} images)")
+    print(f"summary   {out_dir / 'semantics_summary.json'}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="scan", description="Property Scan AI pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -112,6 +157,17 @@ def build_parser() -> argparse.ArgumentParser:
     q.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
     q.add_argument("--out", default="outputs", help="output folder for reports")
     q.set_defaults(func=cmd_qc)
+
+    lb = sub.add_parser("labels", help="label wall/floor/ceiling/door/window/mirror in each frame")
+    lb.add_argument("capture", help="capture folder")
+    lb.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    lb.add_argument("--model", default="segformer-b2-ade", help="segmentation model key (see scan/models.py)")
+    lb.add_argument("--short-side", type=int, default=320, help="model input size (shorter image side, px)")
+    lb.add_argument("--max-frames", type=int, default=100, help="most frames to label per capture")
+    lb.add_argument("--overlays", type=int, default=6, help="number of overlay images to save (0 = none)")
+    lb.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    lb.add_argument("--out", default="outputs", help="output folder")
+    lb.set_defaults(func=cmd_labels)
     return parser
 
 
