@@ -1,0 +1,49 @@
+# Ground truth for one property, measured with a laser (or tape).
+# Copy to bench/ground_truth/<property>.yaml and fill in. All values in metres.
+# Measurement rules: docs/benchmark_session.md, step 1.
+#
+# Walls are labelled A, B, C, ... clockwise (seen from above), starting with the wall that
+# has the room's entrance door. After the first `scan run`, `mapping` links these labels to
+# the pipeline's surface ids shown on plan.png (e.g. bedroom1.A -> room_2.wall_3).
+
+property: my_3bhk
+instrument: laser            # laser | tape
+instrument_model: ""         # e.g. "Bosch GLM 50" (accuracy +-1.5 mm)
+measured_by: ""
+date: ""
+
+rooms:
+  bedroom1:
+    walls: {A: 0.000, B: 0.000, C: 0.000, D: 0.000}
+    ceiling: 0.000
+    doors:
+      - {wall: A, width: 0.000}
+    windows:
+      - {wall: C, width: 0.000, sill: 0.000}
+
+  bedroom2:
+    walls: {A: 0.000, B: 0.000, C: 0.000, D: 0.000}
+    ceiling: 0.000
+    doors: [{wall: A, width: 0.000}]
+    windows: []
+
+  # repeat room: the same measurements taken a second time, independently
+  bedroom2_repeat:
+    of: bedroom2
+    walls: {A: 0.000, B: 0.000, C: 0.000, D: 0.000}
+    ceiling: 0.000
+
+damage:
+  - {room: bedroom1, surface: ceiling, class: water_stain, width: 0.000, height: 0.000}
+  - {room: bedroom1, surface: wall, wall: B, class: crack, length: 0.000}
+
+# Filled after the first run, by looking at outputs/<capture>/plan.png
+mapping:
+  lidar_flat: {}   # e.g. {bedroom1: room_2, bedroom1.A: room_2.wall_3, bedroom1.door_A: opening_4}
+
+# Polycam's numbers for the head-to-head (Part 3), read from its export
+competitor:
+  app: Polycam
+  version: ""
+  rooms:
+    bedroom1: {walls: {A: 0.000, B: 0.000, C: 0.000, D: 0.000}, ceiling: 0.000, doors: [0.000]}

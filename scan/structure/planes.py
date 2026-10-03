@@ -72,6 +72,8 @@ class StructureConfig:
     wall_inlier_m: float = 0.04
     wall_min_voxels: int = 400  # ~0.16 m2 of wall at 2 cm voxels
     wall_nms_m: float = 0.06
+    deep_window_m: float = 0.08  # a strong surface up to this far behind a peak is the real wall
+    deep_ratio: float = 0.4
     segment_gap_m: float = 0.4
     segment_min_len_m: float = 0.3
     segment_min_voxels: int = 150
@@ -272,6 +274,7 @@ def find_walls(grid: VoxelGrid, manhattan_deg: float, cfg: StructureConfig,
         min_peak = cfg.wall_min_voxels * np.median(w[member]) / 8
         idx_member = np.flatnonzero(member)
         for b in _peaks(smooth, min_peak, min_sep):
+            b = _deepest_peak(smooth, b, int(round(cfg.deep_window_m / cfg.wall_bin_m)), cfg.deep_ratio)
             c0 = edges[b] + cfg.wall_bin_m / 2
             near = np.abs(c - c0) < cfg.wall_inlier_m
             if near.sum() < cfg.wall_min_voxels:
@@ -291,6 +294,22 @@ def find_walls(grid: VoxelGrid, manhattan_deg: float, cfg: StructureConfig,
                 assigned[seg_idx] = True
     stats.n_wall_voxels_assigned = int(assigned.sum())
     return walls
+
+
+def _deepest_peak(smooth: np.ndarray, b: int, window: int, ratio: float) -> int:
+    """Among strong local maxima up to ``window`` bins deeper than peak ``b``, the deepest.
+
+    Offsets grow into the room (the normal points into it), so a smaller bin index is deeper.
+    Skirting boards, frames and furniture fronts stand in front of a wall, never behind it:
+    picking the deepest strong surface finds the wall itself and stops the choice flipping
+    between two similar peaks a few cm apart (a 3.5 cm jump under 5 mm of pose noise).
+    """
+    best = b
+    for i in range(max(1, b - window), b):
+        is_max = smooth[i] >= smooth[i - 1] and smooth[i] >= smooth[min(i + 1, len(smooth) - 1)]
+        if is_max and smooth[i] >= ratio * smooth[b]:
+            return i  # scanning from the deepest end, the first strong maximum wins
+    return best
 
 
 def _segments(s: np.ndarray, cfg: StructureConfig) -> list[np.ndarray]:

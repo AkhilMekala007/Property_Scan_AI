@@ -326,14 +326,8 @@ def cmd_openings(args: argparse.Namespace) -> int:
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
-    from scan.measure import measure_rooms
-    from scan.openings import find_openings
-    from scan.qc import run_qc
-    from scan.rooms import segment_rooms
-    from scan.semantics import run_semantics
-    from scan.stitch import stitch, write_plan
+    from scan.stitch import write_plan
     from scan.stitch.render import render_floor_plan
-    from scan.structure import run_structure
 
     started = time.perf_counter()
     try:
@@ -341,14 +335,10 @@ def cmd_plan(args: argparse.Namespace) -> int:
     except (CaptureFormatError, NotImplementedError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    qc = run_qc(fs)
-    cov = qc.report.coverage
-    labelled = run_semantics(qc.frameset).frameset
-    model = run_structure(labelled, floor_hint_y=cov.floor_y, ceiling_seen=cov.ceiling_seen)
-    layout = segment_rooms(model, fs.trajectory)
-    rooms, _ = measure_rooms(model, layout)
-    openings = find_openings(model, layout, rooms, labelled)
-    plan = stitch(rooms, openings, layout)
+    from scan.pipeline import run_pipeline
+
+    res = run_pipeline(fs, drift=not args.no_drift_fix)
+    plan, layout = res.plan, res.layout
     elapsed = time.perf_counter() - started
 
     out_dir = Path(args.out) / fs.meta.capture_id
@@ -358,6 +348,13 @@ def cmd_plan(args: argparse.Namespace) -> int:
 
     print(f"PLAN  {plan.capture_id}   {len(plan.rooms)} rooms   net {plan.net_area_m2:.2f} m2   "
           f"footprint {plan.footprint_m2:.2f} m2   time {elapsed:.1f} s")
+    d = res.drift
+    if d.enabled:
+        print(f"drift fix: {d.loops_accepted} loop closure(s) of {d.loops_tested} tested, "
+              f"max correction {d.max_translation_m * 100:.1f} cm / {d.max_yaw_deg:.2f} deg"
+              + (f"  ({d.note})" if d.note else ""))
+    else:
+        print("drift fix: OFF")
     print(f"shared walls {len(plan.shared_walls)}   median wall thickness "
           f"{plan.diagnostics['median_wall_thickness_m'] * 100:.1f} cm")
     print(f"openings {len(plan.openings)} "
@@ -380,6 +377,195 @@ def cmd_plan(args: argparse.Namespace) -> int:
         print(f"  {o.kind:8s} {where:28s} width {o.width_m:.3f} m +-{o.width_sigma_m * 1000:4.1f} mm{both}")
     print(f"\njson   {json_path}\nplan   {img_path}")
     return 0 if not plan.overlaps else 1
+
+
+def cmd_drift(args: argparse.Namespace) -> int:
+    """Drift ablation: the whole pipeline with correction off and on, compared side by side."""
+    import json
+
+    from scan.pipeline import consistency_metrics, run_pipeline
+    from scan.stitch.render import render_floor_plan
+
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    started = time.perf_counter()
+    off = run_pipeline(fs, drift=False)
+    on = run_pipeline(fs, drift=True)
+    m_off, m_on = consistency_metrics(off), consistency_metrics(on)
+    out_dir = Path(args.out) / fs.meta.capture_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "drift_ablation.json").write_text(json.dumps(
+        {"off": m_off, "on": m_on, "drift_report": on.drift.to_dict()}, indent=2), encoding="utf-8")
+    render_floor_plan(off.plan, off.layout.floor_map.frame, out_dir / "floor_plan_drift_off.png",
+                      title=f"{fs.meta.capture_id}  drift correction OFF")
+    render_floor_plan(on.plan, on.layout.floor_map.frame, out_dir / "floor_plan_drift_on.png",
+                      title=f"{fs.meta.capture_id}  drift correction ON")
+    overlay = _footprint_overlay(off, on, out_dir / "drift_ablation.png")
+
+    d = on.drift
+    print(f"DRIFT ABLATION  {fs.meta.capture_id}   time {time.perf_counter() - started:.1f} s")
+    print(f"correction: {d.loops_accepted} loop closure(s) accepted of {d.loops_tested} tested, "
+          f"{d.loops_pruned} pruned, max {d.max_translation_m * 100:.1f} cm / {d.max_yaw_deg:.2f} deg"
+          + (f"  ({d.note})" if d.note else ""))
+    print()
+    print(f"  {'metric':38s} {'OFF':>10s} {'ON':>10s}")
+    for k in m_off:
+        print(f"  {k:38s} {str(m_off[k]):>10s} {str(m_on[k]):>10s}")
+    print()
+    print(f"json     {out_dir / 'drift_ablation.json'}")
+    print(f"overlay  {overlay}")
+    return 0
+
+
+def cmd_repeat(args: argparse.Namespace) -> int:
+    """Repeatability: rerun the pipeline under tiny pose perturbations and report output spread."""
+    import json
+
+    from scan.pipeline import run_pipeline
+    from scan.repeat import compare, perturb, summarise
+
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    started = time.perf_counter()
+    summaries = []
+    for k in range(args.runs):
+        run_fs = fs if k == 0 else perturb(fs, seed=k, trans_sigma_m=args.trans_mm / 1000, yaw_sigma_deg=args.yaw_deg)
+        summaries.append(summarise(run_pipeline(run_fs, drift=False)))
+        print(f"  run {k + 1}/{args.runs}: {summaries[-1].n_rooms} rooms, {summaries[-1].n_openings} openings",
+              flush=True)
+    report = compare(summaries)
+    head = report.headline()
+    out_dir = Path(args.out) / fs.meta.capture_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "repeatability.json").write_text(json.dumps(
+        {"perturbation": {"trans_mm": args.trans_mm, "yaw_deg": args.yaw_deg}, "headline": head,
+         "room_area_spread_pct": report.room_area_spread_pct, "wall_length_spread_m": report.wall_length_spread_m,
+         "opening_width_spread_m": report.opening_width_spread_m}, indent=2), encoding="utf-8")
+    print(f"REPEAT  {fs.meta.capture_id}   {args.runs} runs, pose noise {args.trans_mm} mm / {args.yaw_deg} deg "
+          f"per fragment   time {time.perf_counter() - started:.1f} s")
+    for k, v in head.items():
+        print(f"  {k:32s} {v}")
+    return 0
+
+
+def cmd_damage(args: argparse.Namespace) -> int:
+    import json
+    from dataclasses import asdict
+
+    from scan.pipeline import run_pipeline
+    from scan.rules import to_dicts
+
+    started = time.perf_counter()
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    res = run_pipeline(fs, upto="damage", drift=not args.no_drift_fix)
+    d = res.damage
+    out_dir = Path(args.out) / fs.meta.capture_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "damage.json").write_text(json.dumps(
+        {"damage": [asdict(r) for r in d.regions], **to_dicts(res.flags, res.scope),
+         "diagnostics": {"frames_scanned": d.frames_scanned, "frames_from_cache": d.frames_from_cache,
+                         "detections": d.detections, "views_measured": d.views_measured, "dropped": d.dropped}},
+        indent=2), encoding="utf-8")
+    print(f"DAMAGE  {fs.meta.capture_id}   {len(d.regions)} region(s), {len(res.flags)} flag(s), "
+          f"{len(res.scope)} scope item(s)   time {time.perf_counter() - started:.1f} s")
+    print(f"scanned {d.frames_scanned} frames ({d.frames_from_cache} from cache): {d.detections} detections above "
+          f"threshold, {d.views_measured} measured on a surface; dropped {d.dropped or 'none'}")
+    for r in d.regions:
+        print(f"  #{r.id} {r.cls:11s} on {r.surface:18s} area {r.area_m2:.3f} m2 +-{r.area_sigma_m2:.3f}  "
+              f"length {r.length_m:.2f} m  views {r.n_views}  confidence {r.confidence:.2f}")
+    for f in res.flags:
+        print(f"  FLAG [{f.severity}] {f.rule_id} on {f.surface}: {f.reason}")
+    for s in res.scope:
+        print(f"  SCOPE {s.item}: {s.qty:.2f} +-{s.qty_sigma:.2f} {s.unit}  ({s.surface}, {s.rule_id})")
+    print(f"json   {out_dir / 'damage.json'}")
+    return 0
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    """One command per capture: the full pipeline -> result.json (published schema) + plan.png."""
+    from scan.contract import build_result, to_json
+    from scan.pipeline import run_pipeline
+    from scan.qc import write_reports
+    from scan.stitch.render import render_floor_plan
+
+    started = time.perf_counter()
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    res = run_pipeline(fs, upto="damage", drift=not args.no_drift_fix)
+    result = build_result(res, time.perf_counter() - started)
+    out_dir = Path(args.out) / fs.meta.capture_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "result.json").write_text(to_json(result), encoding="utf-8")
+    write_reports(res.qc.report, out_dir)
+    render_floor_plan(res.plan, res.layout.floor_map.frame, out_dir / "plan.png",
+                      damage=res.damage.regions if res.damage else None)
+
+    p, c = result.property, result.capture
+    print(f"RESULT  {c.id}   tier {c.tier}   quality {c.quality_score:.2f}   {result.processing.runtime_s:.0f} s")
+    print(f"  {p.rooms_count} rooms, net {p.net_floor_area.value:.2f} m2 "
+          f"[{p.net_floor_area.lo:.2f}, {p.net_floor_area.hi:.2f}], connected {p.connected}, "
+          f"overlaps {len(p.overlaps)}")
+    for r in result.rooms:
+        ceiling = (f"ceiling {r.ceiling_height.value:.3f} m [{r.ceiling_height.lo:.3f}, {r.ceiling_height.hi:.3f}]"
+                   if r.ceiling_height else f"ceiling n/a ({r.ceiling_note})")
+        seen = sum(w.observed for w in r.walls)
+        print(f"  {r.name:12s} {r.floor_area.value:6.2f} m2   {ceiling}   walls {seen}/{len(r.walls)} observed")
+    print(f"  openings {len(result.openings)}, damage {len(result.damage)}, flags {len(result.flags)}, "
+          f"scope items {len(result.scope)}")
+    errors = [i for i in c.issues if i.severity == "error"]
+    for i in errors:
+        print(f"  [x] {i.code}: {i.message}")
+    print(f"json   {out_dir / 'result.json'}  (schema {result.schema_version}, intervals uncalibrated)")
+    print(f"plan   {out_dir / 'plan.png'}")
+    return 1 if errors or p.overlaps else 0
+
+
+def cmd_schema(args: argparse.Namespace) -> int:
+    import json
+
+    from scan.contract import json_schema
+
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(json_schema(), indent=2) + chr(10), encoding="utf-8")
+    print(f"schema written to {out}")
+    return 0
+
+
+def _footprint_overlay(off, on, out_path):
+    """Room outlines from both runs on one canvas in world coordinates: red = off, green = on."""
+    import cv2
+    import numpy as np
+
+    polys_off = [np.array(r.corners_xz) for r in off.plan.rooms]
+    polys_on = [np.array(r.corners_xz) for r in on.plan.rooms]
+    allp = np.concatenate(polys_off + polys_on)
+    lo = allp.min(axis=0) - 0.5
+    hi = allp.max(axis=0) + np.array([0.5, 1.0])
+    ppm = 100
+    w, h = (np.ceil((hi - lo) * ppm)).astype(int)
+    img = np.full((h, w, 3), 255, np.uint8)
+    for polys, colour, thick in ((polys_off, (60, 60, 220), 3), (polys_on, (40, 160, 40), 1)):
+        for p in polys:
+            pts = np.round((p - lo) * ppm).astype(np.int32)
+            cv2.polylines(img, [pts], True, colour, thick, cv2.LINE_AA)
+    cv2.putText(img, "red (thick) = drift correction OFF   green (thin) = ON", (10, h - 15),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
+    cv2.imwrite(str(out_path), img)
+    return out_path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -447,7 +633,45 @@ def build_parser() -> argparse.ArgumentParser:
     pl.add_argument("--device", help="iPhone model, when the capture files don't record it")
     pl.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
     pl.add_argument("--out", default="outputs", help="output folder")
+    pl.add_argument("--no-drift-fix", action="store_true", help="use ARKit poses as-is (for the ablation)")
     pl.set_defaults(func=cmd_plan)
+
+    dr = sub.add_parser("drift", help="drift ablation: full pipeline with correction off vs on")
+    dr.add_argument("capture", help="capture folder")
+    dr.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    dr.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    dr.add_argument("--out", default="outputs", help="output folder")
+    dr.set_defaults(func=cmd_drift)
+
+    rp = sub.add_parser("repeat", help="repeatability under tiny pose perturbations")
+    rp.add_argument("capture", help="capture folder")
+    rp.add_argument("--runs", type=int, default=3)
+    rp.add_argument("--trans-mm", type=float, default=5.0, help="per-fragment translation noise (mm)")
+    rp.add_argument("--yaw-deg", type=float, default=0.1, help="per-fragment yaw noise (deg)")
+    rp.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    rp.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    rp.add_argument("--out", default="outputs", help="output folder")
+    rp.set_defaults(func=cmd_repeat)
+
+    dm = sub.add_parser("damage", help="detect and measure damage, then apply flag/scope rules")
+    dm.add_argument("capture", help="capture folder")
+    dm.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    dm.add_argument("--no-drift-fix", action="store_true")
+    dm.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    dm.add_argument("--out", default="outputs", help="output folder")
+    dm.set_defaults(func=cmd_damage)
+
+    rn = sub.add_parser("run", help="ONE COMMAND PER CAPTURE: full pipeline -> result.json + plan.png")
+    rn.add_argument("capture", help="capture folder")
+    rn.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    rn.add_argument("--no-drift-fix", action="store_true")
+    rn.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    rn.add_argument("--out", default="outputs", help="output folder")
+    rn.set_defaults(func=cmd_run)
+
+    sc = sub.add_parser("schema", help="write the published JSON schema of result.json")
+    sc.add_argument("--out", default="schema/result.schema.json")
+    sc.set_defaults(func=cmd_schema)
     return parser
 
 

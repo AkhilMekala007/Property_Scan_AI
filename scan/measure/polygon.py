@@ -76,7 +76,10 @@ class Edge:
 @dataclass
 class PolygonConfig:
     merge_tol_m: float = 0.03  # walls this close and parallel are the same line
-    fill_threshold: float = 0.5  # a rectangle is in the room above this coverage
+    strong_threshold: float = 0.6  # a rectangle this covered is certainly in the room
+    weak_threshold: float = 0.4  # ...this covered, only if connected to a certain one
+    bridge_threshold: float = 0.1  # a sandwiched strip run needs at least this coverage somewhere
+    max_strip_m: float = 0.35  # thin strips stacked up to this size between room pieces are inside
     bridge_m: float = 0.10  # room region is grown by this much to reach the wall faces
     fallback_gap_m: float = 0.4  # no wall within this of the region's extent -> inferred line
 
@@ -144,22 +147,46 @@ def arrangement_polygon(
     def row_of(v):
         return int(np.clip(np.round((v - frame.origin_uv[1]) / cell_m), 0, h))
 
-    occ = np.zeros((len(V) - 1, len(U) - 1), np.uint8)
+    cov = np.zeros((len(V) - 1, len(U) - 1))
     for i in range(len(V) - 1):
         r0, r1 = row_of(V[i]), row_of(V[i + 1])
+        r1 = min(max(r1, r0 + 1), h)  # slivers thinner than a grid cell are measured over one cell;
+        r0 = r1 - 1 if r1 - r0 < 1 else r0  # with zero area their coverage read 0 and split rooms
         for j in range(len(U) - 1):
             c0, c1 = col_of(U[j]), col_of(U[j + 1])
+            c1 = min(max(c1, c0 + 1), w)
+            c0 = c1 - 1 if c1 - c0 < 1 else c0
             area = (r1 - r0) * (c1 - c0)
             if area <= 0:
                 continue
             covered = integral[r1, c1] - integral[r0, c1] - integral[r1, c0] + integral[r0, c0]
-            occ[i, j] = covered / area >= cfg.fill_threshold
-    if not occ.any():
-        raise ValueError("no rectangle of the line arrangement is covered by the room")
+            cov[i, j] = covered / area
 
-    n, comp, stats, _ = cv2.connectedComponentsWithStats(occ, connectivity=4)
-    biggest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
-    occ = (comp == biggest).astype(np.uint8)
+    # Hysteresis: rectangles above the strong threshold are certain; weaker ones are kept only
+    # when connected to a certain one. With a single threshold, one borderline rectangle
+    # flipping could split the room and the smaller half was dropped (24.6 -> 17.1 m2 under
+    # 5 mm of pose noise).
+    strong = cov >= cfg.strong_threshold
+    sel = (cov >= cfg.weak_threshold).astype(np.uint8)
+    if not strong.any():
+        raise ValueError("no rectangle of the line arrangement is covered by the room")
+    rect_area = np.outer(np.diff(V), np.diff(U))
+    # The room region is one connected area. Wall and outline lines a few cm apart running
+    # through it leave stacks of thin strips; a run of strips sandwiched between selected
+    # rectangles is inside the room. Without this, the room split there and the smaller piece
+    # was dropped (24.4 vs 10.8 m2 under 5 mm of pose noise).
+    _fill_sandwiched(sel, cov, np.diff(V), cfg)  # strips stacked along v (rows)
+    _fill_sandwiched(sel.T, cov.T, np.diff(U), cfg)  # strips stacked along u (columns), in place
+    n, comp = cv2.connectedComponents(sel, connectivity=4)
+    # Pick the piece covering the most real room area (not the biggest rectangles: those are
+    # often half outside the room and inflated a polygon to 27.5 m2 for a 21.3 m2 region).
+    covered_area = cov * rect_area
+    best, best_cover = 0, -1.0
+    for k in range(1, n):
+        part = comp == k
+        if strong[part].any() and covered_area[part].sum() > best_cover:
+            best, best_cover = k, float(covered_area[part].sum())
+    occ = (comp == best).astype(np.uint8)
 
     # trace the outline: each arrangement cell becomes a 3x3 block, so contour vertices
     # land on block corners that map exactly onto line coordinates
@@ -188,6 +215,25 @@ def arrangement_polygon(
             group = v_groups[int(np.argmin(np.abs(V - coord)))]
         edges.append(Edge(axis, float(coord), (float(span[0]), float(span[1])), list(group)))
     return corners, edges
+
+
+def _fill_sandwiched(sel: np.ndarray, cov: np.ndarray, sizes: np.ndarray, cfg: PolygonConfig) -> None:
+    """Select runs of unselected rows (per column) whose total size is small and that have
+    selected rectangles directly before and after them. Works in place (also on a transposed view)."""
+    rows, cols = sel.shape
+    for j in range(cols):
+        i = 1
+        while i < rows - 1:
+            if sel[i, j] or not sel[i - 1, j]:
+                i += 1
+                continue
+            k, total = i, 0.0
+            while k < rows and not sel[k, j] and total + sizes[k] <= cfg.max_strip_m:
+                total += sizes[k]
+                k += 1
+            if k < rows and sel[k, j] and k > i and cov[i:k, j].max() >= cfg.bridge_threshold:
+                sel[i:k, j] = 1
+            i = max(k, i + 1)
 
 
 def _dedupe(pts: list[tuple[float, float]]) -> list[tuple[float, float]]:

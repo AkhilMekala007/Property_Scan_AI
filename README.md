@@ -24,7 +24,7 @@ python -m venv .venv
 .venv/Scripts/activate        # Windows; use .venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
 pip install -e .
-python scripts/fetch_weights.py   # one-time model download (~125 MB); the pipeline itself runs offline
+python scripts/fetch_weights.py   # one-time model download (~1.3 GB with all registered models); the pipeline itself runs offline
 ```
 
 Models used so far (weights in `weights/`, never committed):
@@ -33,8 +33,28 @@ Models used so far (weights in `weights/`, never committed):
 |---|---|---|
 | SegFormer-B2, ADE20K (`nvidia/segformer-b2-finetuned-ade-512-512`) | Surface labels: wall, floor, ceiling, door, window, mirror | NVIDIA Source Code License (non-commercial) |
 | SegFormer-B0, ADE20K | Faster alternative (`--model segformer-b0-ade`) | same |
+| OWL-ViT B/32 (`google/owlvit-base-patch32`) | Damage detection from text prompts | Apache-2.0 |
+| OWLv2 base, SAM 2.1 tiny | Registered alternatives (slower on CPU; not used by default) | Apache-2.0 |
 
-## Usage (so far)
+## Run a capture (one command)
+
+```bash
+scan run path/to/capture --device "iPhone 15 Pro"
+```
+
+Writes to `outputs/<capture_id>/`:
+
+| File | Contents |
+|---|---|
+| `result.json` | The full result, validated against [`schema/result.schema.json`](schema/result.schema.json): rooms (walls, ceiling height, floor area, openings), stitched plan (adjacency, shared walls, footprint), damage regions, concealed-damage flags with the rule that fired, scope line items keyed to surfaces. Every number carries a 90 % interval (`value`, `lo`, `hi`, `sigma`) |
+| `plan.png` | The rendered whole-property floor plan |
+| `qc_report.md` / `.json` | Capture quality issues with fixes |
+
+`scan run` exits 1 when the capture has QC errors or rooms overlap (the files are still written).
+Intervals are currently an uncalibrated error budget (`"calibrated": false`); benchmark calibration replaces it.
+`scan schema` regenerates the published schema from the models.
+
+## Step-by-step commands (debugging)
 
 Inspect a capture: detects the tier, validates the files, selects keyframes and
 prints a summary. `--topdown` also saves a top-down sanity render to `outputs/`.
@@ -87,6 +107,27 @@ exits 1 if rooms still overlap):
 
 ```bash
 scan plan path/to/capture --device "iPhone 15 Pro"
+```
+
+Drift correction (pose graph with ICP loop closures) is on by default; `--no-drift-fix` uses
+ARKit poses as-is. The ablation runs both and compares them (writes `drift_ablation.json`,
+both floor plans and an overlay):
+
+```bash
+scan drift path/to/capture
+```
+
+Repeatability under tiny pose perturbations (room counts, area / wall / opening spread):
+
+```bash
+scan repeat path/to/capture --runs 3
+```
+
+Detect and measure damage, then apply the concealed-damage and scope rules
+(`rules/damage_rules.yaml`; writes `damage.json`):
+
+```bash
+scan damage path/to/capture --device "iPhone 15 Pro"
 ```
 
 ## Tests

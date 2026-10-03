@@ -19,7 +19,8 @@ TEXT = (30, 30, 30)
 DIM = (90, 90, 90)
 
 
-def render_floor_plan(plan: PropertyPlan, frame, out_path: Path, title: str | None = None) -> Path:
+def render_floor_plan(plan: PropertyPlan, frame, out_path: Path, title: str | None = None,
+                      damage=None) -> Path:
     t = plan.diagnostics.get("median_wall_thickness_m", 0.1)
     polys = [np.array(r.corners_uv) for r in plan.rooms]
     allp = np.concatenate(polys)
@@ -109,6 +110,41 @@ def render_floor_plan(plan: PropertyPlan, frame, out_path: Path, title: str | No
             (tw, _), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, 1)
             cv2.putText(img, text, (x - tw // 2, y - 8 + 18 * i), cv2.FONT_HERSHEY_SIMPLEX, scale, TEXT,
                         2 if i == 0 else 1, cv2.LINE_AA)
+
+    # damage: floor / ceiling regions as outlines in the plan, wall damage as a marker on its wall
+    if damage:
+        colours = {"water_stain": (30, 110, 200), "crack": (40, 40, 200), "mold": (60, 120, 40)}
+        for d in damage:
+            room, poly = by_id.get(d.room_id, (None, None))
+            if room is None:
+                continue
+            colour = colours.get(d.cls, (0, 0, 200))
+            label = f"{d.cls.replace('_', ' ')} {d.area_m2:.2f} m2" + (" (ceiling)" if d.surface_kind == "ceiling" else "")
+            if d.surface_kind in ("floor", "ceiling") and d.outline_2d:
+                pts = np.array([px(p) for p in d.outline_2d], np.int32)
+                if d.surface_kind == "ceiling":
+                    for k in range(len(pts)):
+                        if k % 2 == 0:
+                            cv2.line(img, tuple(pts[k]), tuple(pts[(k + 1) % len(pts)]), colour, 2)
+                else:
+                    cv2.polylines(img, [pts], True, colour, 2)
+                anchor = pts.mean(axis=0).astype(int)
+            else:
+                k = d.wall_index
+                a, b = poly[k], poly[(k + 1) % len(poly)]
+                axis = 0 if abs(a[0] - b[0]) < 1e-9 else 1
+                pos = np.zeros(2)
+                pos[axis] = a[axis]
+                pos[1 - axis] = d.centroid_2d[0]
+                inward = np.zeros(2)
+                inward[axis] = _inward_sign(poly, k)
+                tip = px(pos + inward * 0.12)
+                tri = np.array([tip, px(pos + inward * 0.32 + (b - a) / (np.linalg.norm(b - a) + 1e-9) * 0.1),
+                                px(pos + inward * 0.32 - (b - a) / (np.linalg.norm(b - a) + 1e-9) * 0.1)], np.int32)
+                cv2.fillPoly(img, [tri], colour)
+                anchor = np.array(px(pos + inward * 0.45))
+            cv2.putText(img, label, (int(anchor[0]) - 40, int(anchor[1]) + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.4,
+                        colour, 1, cv2.LINE_AA)
 
     # header, scale bar, legend
     title = title or f"{plan.capture_id}  -  {len(plan.rooms)} rooms, {plan.net_area_m2:.1f} m2 net"

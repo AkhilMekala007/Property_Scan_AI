@@ -42,6 +42,27 @@ MODELS: dict[str, ModelSpec] = {
             licence="NVIDIA Source Code License (non-commercial)",
             purpose="C4 surface labels, accurate variant",
         ),
+        ModelSpec(
+            key="owlv2-base",
+            repo_id="google/owlv2-base-patch16-ensemble",
+            revision="main",
+            licence="Apache-2.0",
+            purpose="C10 open-vocabulary damage detection (text prompts)",
+        ),
+        ModelSpec(
+            key="owlvit-b32",
+            repo_id="google/owlvit-base-patch32",
+            revision="main",
+            licence="Apache-2.0",
+            purpose="C10 open-vocabulary damage detection, CPU-fast variant (default)",
+        ),
+        ModelSpec(
+            key="sam2-tiny",
+            repo_id="facebook/sam2.1-hiera-tiny",
+            revision="main",
+            licence="Apache-2.0",
+            purpose="C10 damage masks from detection boxes",
+        ),
     )
 }
 
