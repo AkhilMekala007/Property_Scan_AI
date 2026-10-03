@@ -420,6 +420,40 @@ def cmd_drift(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_repeat(args: argparse.Namespace) -> int:
+    """Repeatability: rerun the pipeline under tiny pose perturbations and report output spread."""
+    import json
+
+    from scan.pipeline import run_pipeline
+    from scan.repeat import compare, perturb, summarise
+
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    started = time.perf_counter()
+    summaries = []
+    for k in range(args.runs):
+        run_fs = fs if k == 0 else perturb(fs, seed=k, trans_sigma_m=args.trans_mm / 1000, yaw_sigma_deg=args.yaw_deg)
+        summaries.append(summarise(run_pipeline(run_fs, drift=False)))
+        print(f"  run {k + 1}/{args.runs}: {summaries[-1].n_rooms} rooms, {summaries[-1].n_openings} openings",
+              flush=True)
+    report = compare(summaries)
+    head = report.headline()
+    out_dir = Path(args.out) / fs.meta.capture_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "repeatability.json").write_text(json.dumps(
+        {"perturbation": {"trans_mm": args.trans_mm, "yaw_deg": args.yaw_deg}, "headline": head,
+         "room_area_spread_pct": report.room_area_spread_pct, "wall_length_spread_m": report.wall_length_spread_m,
+         "opening_width_spread_m": report.opening_width_spread_m}, indent=2), encoding="utf-8")
+    print(f"REPEAT  {fs.meta.capture_id}   {args.runs} runs, pose noise {args.trans_mm} mm / {args.yaw_deg} deg "
+          f"per fragment   time {time.perf_counter() - started:.1f} s")
+    for k, v in head.items():
+        print(f"  {k:32s} {v}")
+    return 0
+
+
 def _footprint_overlay(off, on, out_path):
     """Room outlines from both runs on one canvas in world coordinates: red = off, green = on."""
     import cv2
@@ -517,6 +551,16 @@ def build_parser() -> argparse.ArgumentParser:
     dr.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
     dr.add_argument("--out", default="outputs", help="output folder")
     dr.set_defaults(func=cmd_drift)
+
+    rp = sub.add_parser("repeat", help="repeatability under tiny pose perturbations")
+    rp.add_argument("capture", help="capture folder")
+    rp.add_argument("--runs", type=int, default=3)
+    rp.add_argument("--trans-mm", type=float, default=5.0, help="per-fragment translation noise (mm)")
+    rp.add_argument("--yaw-deg", type=float, default=0.1, help="per-fragment yaw noise (deg)")
+    rp.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    rp.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    rp.add_argument("--out", default="outputs", help="output folder")
+    rp.set_defaults(func=cmd_repeat)
     return parser
 
 
