@@ -10,6 +10,7 @@ safetensors==0.8.0
 pillow==12.3.0  # model processors
 scipy==1.18.1  # OWL processors (resize)
 PyYAML==6.0.3  # C11 rule file
+pydantic==2.13.5  # C13 output contract
 
 # Geometry (C5 drift correction: ICP + pose graph)
 open3d==0.20.0

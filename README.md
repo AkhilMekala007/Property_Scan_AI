@@ -36,7 +36,25 @@ Models used so far (weights in `weights/`, never committed):
 | OWL-ViT B/32 (`google/owlvit-base-patch32`) | Damage detection from text prompts | Apache-2.0 |
 | OWLv2 base, SAM 2.1 tiny | Registered alternatives (slower on CPU; not used by default) | Apache-2.0 |
 
-## Usage (so far)
+## Run a capture (one command)
+
+```bash
+scan run path/to/capture --device "iPhone 15 Pro"
+```
+
+Writes to `outputs/<capture_id>/`:
+
+| File | Contents |
+|---|---|
+| `result.json` | The full result, validated against [`schema/result.schema.json`](schema/result.schema.json): rooms (walls, ceiling height, floor area, openings), stitched plan (adjacency, shared walls, footprint), damage regions, concealed-damage flags with the rule that fired, scope line items keyed to surfaces. Every number carries a 90 % interval (`value`, `lo`, `hi`, `sigma`) |
+| `plan.png` | The rendered whole-property floor plan |
+| `qc_report.md` / `.json` | Capture quality issues with fixes |
+
+`scan run` exits 1 when the capture has QC errors or rooms overlap (the files are still written).
+Intervals are currently an uncalibrated error budget (`"calibrated": false`); benchmark calibration replaces it.
+`scan schema` regenerates the published schema from the models.
+
+## Step-by-step commands (debugging)
 
 Inspect a capture: detects the tier, validates the files, selects keyframes and
 prints a summary. `--topdown` also saves a top-down sanity render to `outputs/`.

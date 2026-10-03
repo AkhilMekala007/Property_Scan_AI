@@ -491,6 +491,60 @@ def cmd_damage(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_run(args: argparse.Namespace) -> int:
+    """One command per capture: the full pipeline -> result.json (published schema) + plan.png."""
+    from scan.contract import build_result, to_json
+    from scan.pipeline import run_pipeline
+    from scan.qc import write_reports
+    from scan.stitch.render import render_floor_plan
+
+    started = time.perf_counter()
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    res = run_pipeline(fs, upto="damage", drift=not args.no_drift_fix)
+    result = build_result(res, time.perf_counter() - started)
+    out_dir = Path(args.out) / fs.meta.capture_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "result.json").write_text(to_json(result), encoding="utf-8")
+    write_reports(res.qc.report, out_dir)
+    render_floor_plan(res.plan, res.layout.floor_map.frame, out_dir / "plan.png",
+                      damage=res.damage.regions if res.damage else None)
+
+    p, c = result.property, result.capture
+    print(f"RESULT  {c.id}   tier {c.tier}   quality {c.quality_score:.2f}   {result.processing.runtime_s:.0f} s")
+    print(f"  {p.rooms_count} rooms, net {p.net_floor_area.value:.2f} m2 "
+          f"[{p.net_floor_area.lo:.2f}, {p.net_floor_area.hi:.2f}], connected {p.connected}, "
+          f"overlaps {len(p.overlaps)}")
+    for r in result.rooms:
+        ceiling = (f"ceiling {r.ceiling_height.value:.3f} m [{r.ceiling_height.lo:.3f}, {r.ceiling_height.hi:.3f}]"
+                   if r.ceiling_height else f"ceiling n/a ({r.ceiling_note})")
+        seen = sum(w.observed for w in r.walls)
+        print(f"  {r.name:12s} {r.floor_area.value:6.2f} m2   {ceiling}   walls {seen}/{len(r.walls)} observed")
+    print(f"  openings {len(result.openings)}, damage {len(result.damage)}, flags {len(result.flags)}, "
+          f"scope items {len(result.scope)}")
+    errors = [i for i in c.issues if i.severity == "error"]
+    for i in errors:
+        print(f"  [x] {i.code}: {i.message}")
+    print(f"json   {out_dir / 'result.json'}  (schema {result.schema_version}, intervals uncalibrated)")
+    print(f"plan   {out_dir / 'plan.png'}")
+    return 1 if errors or p.overlaps else 0
+
+
+def cmd_schema(args: argparse.Namespace) -> int:
+    import json
+
+    from scan.contract import json_schema
+
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(json_schema(), indent=2) + chr(10), encoding="utf-8")
+    print(f"schema written to {out}")
+    return 0
+
+
 def _footprint_overlay(off, on, out_path):
     """Room outlines from both runs on one canvas in world coordinates: red = off, green = on."""
     import cv2
@@ -606,6 +660,18 @@ def build_parser() -> argparse.ArgumentParser:
     dm.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
     dm.add_argument("--out", default="outputs", help="output folder")
     dm.set_defaults(func=cmd_damage)
+
+    rn = sub.add_parser("run", help="ONE COMMAND PER CAPTURE: full pipeline -> result.json + plan.png")
+    rn.add_argument("capture", help="capture folder")
+    rn.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    rn.add_argument("--no-drift-fix", action="store_true")
+    rn.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    rn.add_argument("--out", default="outputs", help="output folder")
+    rn.set_defaults(func=cmd_run)
+
+    sc = sub.add_parser("schema", help="write the published JSON schema of result.json")
+    sc.add_argument("--out", default="schema/result.schema.json")
+    sc.set_defaults(func=cmd_schema)
     return parser
 
 
