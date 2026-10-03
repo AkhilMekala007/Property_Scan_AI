@@ -77,3 +77,23 @@ On the old 8-frame chunks, step 1 alone improved 5 of 6 joins (fitness e.g. 0.07
 ## Regenerate
 
 `git checkout 6ec0cd4` (before) / `2fea3a4` (after), then `scan run data/raw/benchmark/video_flat --device "iPhone 15"`. Before uses the cached chunks in `da3_160_32_8_336`; after in `da3_160_32_16_336`.
+
+## Outcome of attempt 1 (recorded 2026-10-04 04:07 IST, after the run)
+
+**Prediction falsified.** After (commit `2fea3a4`, 16-frame overlap + ICP against all placed chunks):
+3 rooms, 1 overlapping pair, **31.6 m²** net (predicted 5 ± 1 rooms, 67–91 m²). ICP improved every
+accepted join (overlap fitness e.g. 0.14 → 0.31), but the per-chunk metric scale still varies by up to
+33 % along the chain. Fusing all chunks into one model smears walls that were seen at different
+scales; C6 then drops floor it cannot bound and merges what remains.
+
+Revised root cause: not the joins alone but **fusing depth from chunks whose scales disagree**. Within
+one chunk DA3 is self-consistent and the metric scale is measured for that chunk.
+
+## Attempt 2 — measure each chunk on its own (prediction written before the run)
+
+**Fix:** every chunk becomes its own fragment with its own metric scale; each runs the room pipeline
+separately (no cross-chunk fusion). Rooms are placed with the chained poses (for layout only); where two
+chunks saw the same room, the copy with more observed walls is kept.
+
+**Prediction:** at least 4 of the 5 rooms recovered as separate rooms; matched bedroom walls within
+±8 % of the tape (median ≤ 5 %), still mostly outside the ±3 % video gate; net area 55–90 m².

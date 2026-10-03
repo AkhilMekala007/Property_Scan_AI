@@ -42,6 +42,7 @@ class Fragment:
     name: str
     frameset: FrameSet
     note: str = ""
+    layout_xz: dict[int, np.ndarray] | None = None  # frame index -> camera xz in a common frame (layout only)
 
 
 # ---------- shared ----------
@@ -291,7 +292,7 @@ def _frames_multiview(mv, images: list[Path], metric: list[np.ndarray], indices:
 
 def video_fragments_da3(mv, video: Path, capture_id: str, cache_root: Path, device: str | None,
                         cfg: VideoConfig | None = None, n_frames: int = 160, chunk: int = 32, overlap: int = 16,
-                        process_res: int = 336) -> tuple[CaptureMeta, list[Fragment]]:
+                        process_res: int = 336, per_chunk: bool = True) -> tuple[CaptureMeta, list[Fragment]]:
     """Whole video as one fragment: DA3 poses per overlapping chunk, chunks chained by shared frames."""
     from scan.multiview import MultiViewResult, join_chunks
 
@@ -355,7 +356,23 @@ def video_fragments_da3(mv, video: Path, capture_id: str, cache_root: Path, devi
                                depth_size=(384, 216), ratios=[scale])
     frames = _gravity_align(frames)
     fmeta = replace(meta, warnings=[])
-    return meta, [Fragment("video", _frameset(fmeta, frames, cache_root / capture_id), "; ".join(notes2))]
+    if not per_chunk:
+        return meta, [Fragment("video", _frameset(fmeta, frames, cache_root / capture_id), "; ".join(notes2))]
+    # Each chunk measured on its own: DA3 is self-consistent within a chunk and the chunk's metric scale
+    # is measured for it, so no depth from chunks at disagreeing scales is fused. The chained poses
+    # serve only to lay the rooms out.
+    layout = {f.index: f.T_world_cam[[0, 2], 3] for f in frames}
+    out = []
+    for c, ((ids, res), ratio) in enumerate(zip(chunks, metric)):
+        n: list[str] = []
+        fr = _frames_multiview(mv, [images[i] for i in ids], None, [keys[i][0] for i in ids],
+                               [keys[i][1] for i in ids], (info.width, info.height), cfg, n, result=res,
+                               depth_size=(384, 216), ratios=[ratio])
+        fr = _gravity_align(fr)
+        out.append(Fragment(f"chunk_{c}", _frameset(replace(meta, warnings=[]), fr, cache_root / capture_id),
+                            "; ".join(n), layout_xz={f.index: layout[f.index] for f in fr}))
+    meta.warn(f"video measured per chunk: {len(out)} chunks, each with its own metric scale")
+    return meta, out
 
 
 # ---------- photos ----------
@@ -829,7 +846,7 @@ def assemble(meta: CaptureMeta, runs: list[FragmentRun], log: list[str], damage:
     qc.n_frames_kept = sum(r.n_frames_kept for r in reports)
     qc.quality_score = round(float(np.average([r.quality_score for r in reports],
                                               weights=[max(r.n_frames_kept, 1) for r in reports])), 3)
-    unplaced = [r.fragment.name for r in runs if not r.how.startswith(("anchor", "door"))]
+    unplaced = [r.fragment.name for r in runs if not r.placed and r.rooms]
     if unplaced:
         qc.issues.append(Issue("fragments_unconnected", "warning",
                                f"{len(unplaced)} part(s) could not be placed through a door: {', '.join(unplaced)}; "
@@ -859,13 +876,74 @@ def id_map_by_gid(id_map: dict, gid: int):
     return next(g for g in id_map.values() if g.id == gid)
 
 
+def place_by_layout(runs: list[FragmentRun]) -> list[str]:
+    """Place fragments from camera centres known in a common frame (video chunks).
+
+    Rotation: 2D Procrustes on the shared cameras, snapped so the fragment's Manhattan axes are
+    parallel to the anchor's (rooms stay axis-aligned in the plan); translation re-fitted after snapping.
+    """
+    anchor = max(runs, key=lambda r: sum(m.floor_area_m2 for m in r.rooms))
+    g_m = anchor.res.layout.manhattan_deg
+    log = []
+    for run in runs:
+        frames = run.res.labelled.frames
+        ids = [f.index for f in frames if f.index in run.fragment.layout_xz]
+        if len(ids) < 2:
+            run.how = "no layout cameras"
+            continue
+        A = np.array([run.fragment.layout_xz[i] for i in ids])  # common frame
+        B = np.array([f.T_world_cam[[0, 2], 3] for f in frames if f.index in run.fragment.layout_xz])
+        a0, b0 = A - A.mean(axis=0), B - B.mean(axis=0)
+        ang = np.arctan2((b0[:, 0] * a0[:, 1] - b0[:, 1] * a0[:, 0]).sum(), (b0 * a0).sum())
+        base = np.radians(g_m - run.res.layout.manhattan_deg)
+        k = np.round((ang - base) / (np.pi / 2))
+        run.rot = float(base + k * np.pi / 2)
+        run.t = A.mean(axis=0) - _rot(run.rot) @ B.mean(axis=0)
+        run.placed = True
+        run.how = "anchor" if run is anchor else "placed from the chained camera poses"
+        log.append(f"{run.fragment.name}: rotation {np.degrees(ang):.1f} deg snapped to {np.degrees(run.rot):.1f} deg")
+    return log
+
+
+def drop_duplicates(runs: list[FragmentRun], min_share: float = 0.5) -> list[str]:
+    """Where two fragments measured the same room (overlap > min_share of the smaller), keep the copy
+    with more observed walls (then the larger)."""
+    items = []
+    for run in runs:
+        R = _rot(run.rot)
+        for m in run.rooms:
+            items.append((run, m, np.array(m.corners_xz, float) @ R.T + run.t))
+    score = lambda m: (sum(not w.inferred for w in m.walls), m.floor_area_m2)
+    items.sort(key=lambda it: score(it[1]), reverse=True)
+    kept, log = [], []
+    for run, m, P in items:
+        dup = next((k for k in kept if _overlap_m2([k[2]], [P], 0.05) > min_share * min(m.floor_area_m2,
+                                                                                     k[1].floor_area_m2)), None)
+        if dup is None:
+            kept.append((run, m, P))
+        else:
+            log.append(f"{run.fragment.name}: room of {m.floor_area_m2:.1f} m2 duplicates one from "
+                       f"{dup[0].fragment.name}; kept the better-observed copy")
+    keep = {id(m) for _, m, _ in kept}
+    for run in runs:
+        ids = {m.id for m in run.rooms if id(m) in keep}
+        run.rooms = [m for m in run.rooms if m.id in ids]
+        run.openings = [o for o in run.openings if o.room_id in ids]
+    return log
+
+
 def run_capture(meta: CaptureMeta, fragments: list[Fragment], damage: bool = True):
     keep_largest = meta.tier is Tier.PHOTO
     runs = [r for r in (run_fragment(f, keep_largest) for f in fragments) if r is not None]
     dropped = [f.name for f in fragments if not any(r.fragment is f for r in runs)]
     if not runs:
         raise RuntimeError("no fragment produced a room")
-    log = place_fragments(runs)
+    if all(r.fragment.layout_xz for r in runs):
+        log = place_by_layout(runs)
+        runs = [r for r in runs if r.placed]
+        log += drop_duplicates(runs)
+    else:
+        log = place_fragments(runs)
     if dropped:
         log.append(f"no room from: {', '.join(dropped)}")
     return assemble(meta, runs, log, damage)
