@@ -230,6 +230,49 @@ def cmd_rooms(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_measure(args: argparse.Namespace) -> int:
+    from scan.measure import measure_rooms, render_plan, write_measurements
+    from scan.qc import run_qc
+    from scan.rooms import segment_rooms
+    from scan.semantics import run_semantics
+    from scan.structure import run_structure
+
+    started = time.perf_counter()
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    qc = run_qc(fs)
+    cov = qc.report.coverage
+    labelled = run_semantics(qc.frameset).frameset
+    model = run_structure(labelled, floor_hint_y=cov.floor_y, ceiling_seen=cov.ceiling_seen)
+    layout = segment_rooms(model, fs.trajectory)
+    rooms, diag = measure_rooms(model, layout)
+    elapsed = time.perf_counter() - started
+
+    out_dir = Path(args.out) / fs.meta.capture_id
+    json_path = write_measurements(rooms, diag, fs.meta.capture_id, out_dir)
+    img_path = render_plan(rooms, layout, out_dir / "plan.png")
+
+    total = sum(r.floor_area_m2 for r in rooms)
+    print(f"MEASURE  {fs.meta.capture_id}   {len(rooms)} rooms, {total:.2f} m2 total   time {elapsed:.1f} s")
+    print("(uncertainties are fit-only; calibration adds depth bias and drift)")
+    for r in rooms:
+        ceiling = (f"ceiling {r.ceiling_height_m:.3f} m +-{r.ceiling_sigma_m * 1000:.1f} mm"
+                   if r.ceiling_height_m is not None else f"ceiling n/a ({r.ceiling_note})")
+        print(f"\n  {r.name}  ({r.kind})   area {r.floor_area_m2:.2f} m2 +-{r.floor_area_sigma_m2:.3f}   "
+              f"perimeter {r.perimeter_m:.2f} m   {ceiling}   floor tilt {r.floor_tilt_deg:.2f} deg")
+        for wm in r.walls:
+            flag = "  INFERRED" if wm.inferred else ""
+            print(f"    wall {wm.index:2d}  {wm.length_m:5.2f} m +-{wm.sigma_m * 1000:5.1f} mm   "
+                  f"seen {wm.coverage:4.0%}   planes {wm.wall_ids}{flag}")
+    if diag["walls_not_axis_aligned"]:
+        print(f"\n  note: {diag['walls_not_axis_aligned']} wall planes are not right-angled and were not used")
+    print(f"\njson   {json_path}\nplan   {img_path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="scan", description="Property Scan AI pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -274,6 +317,13 @@ def build_parser() -> argparse.ArgumentParser:
     rm.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
     rm.add_argument("--out", default="outputs", help="output folder")
     rm.set_defaults(func=cmd_rooms)
+
+    ms = sub.add_parser("measure", help="measure each room: wall lengths, floor area, ceiling height")
+    ms.add_argument("capture", help="capture folder")
+    ms.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    ms.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    ms.add_argument("--out", default="outputs", help="output folder")
+    ms.set_defaults(func=cmd_measure)
     return parser
 
 

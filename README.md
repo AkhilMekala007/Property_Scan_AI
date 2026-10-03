@@ -68,6 +68,13 @@ Split the capture into rooms, corridors and doorways (writes `rooms.json` and `r
 scan rooms path/to/capture --device "iPhone 15 Pro"
 ```
 
+Measure every room: wall lengths, floor area, ceiling height with uncertainties
+(writes `measurements.json` and a dimensioned `plan.png`):
+
+```bash
+scan measure path/to/capture --device "iPhone 15 Pro"
+```
+
 ## Tests
 
 ```bash
