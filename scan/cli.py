@@ -189,6 +189,47 @@ def cmd_structure(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_rooms(args: argparse.Namespace) -> int:
+    from scan.qc import run_qc
+    from scan.rooms import render_rooms, segment_rooms, write_rooms
+    from scan.semantics import run_semantics
+    from scan.structure import run_structure
+
+    started = time.perf_counter()
+    try:
+        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+    except (CaptureFormatError, NotImplementedError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    qc = run_qc(fs)
+    cov = qc.report.coverage
+    labelled = run_semantics(qc.frameset).frameset
+    model = run_structure(labelled, floor_hint_y=cov.floor_y, ceiling_seen=cov.ceiling_seen)
+    t_rooms = time.perf_counter()
+    layout = segment_rooms(model, fs.trajectory)
+    rooms_s = time.perf_counter() - t_rooms
+    elapsed = time.perf_counter() - started
+
+    out_dir = Path(args.out) / fs.meta.capture_id
+    json_path = write_rooms(layout, out_dir)
+    img_path = render_rooms(layout, out_dir / "rooms_debug.png")
+
+    total = sum(r.area_m2 for r in layout.rooms)
+    print(f"ROOMS  {layout.capture_id}   {len(layout.rooms)} rooms, {len(layout.doorways)} doorways, "
+          f"{total:.1f} m2 total   time {elapsed:.1f} s (segmentation {rooms_s:.1f} s)")
+    for r in layout.rooms:
+        ceiling = f"ceiling {r.ceiling_height_m:.3f} m" if r.ceiling_height_m is not None else f"ceiling n/a ({r.ceiling_note})"
+        print(f"  {r.name:12s} {r.area_m2:6.1f} m2   {ceiling}   walls {len(r.wall_ids):2d}   doorways {r.doorway_ids}")
+    for d in layout.doorways:
+        print(f"  doorway {d.id}: {layout.rooms[d.room_a - 1].name} <-> {layout.rooms[d.room_b - 1].name}  "
+              f"{d.kind:7s} ~{d.width_m:.2f} m")
+    if layout.unreached_areas_m2:
+        print(f"  dropped {len(layout.unreached_areas_m2)} area(s) seen only from outside: "
+              f"{', '.join(f'{a:.1f} m2' for a in layout.unreached_areas_m2)}")
+    print(f"json   {json_path}\nimage  {img_path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="scan", description="Property Scan AI pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -226,6 +267,13 @@ def build_parser() -> argparse.ArgumentParser:
     st.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
     st.add_argument("--out", default="outputs", help="output folder")
     st.set_defaults(func=cmd_structure)
+
+    rm = sub.add_parser("rooms", help="split the capture into rooms and doorways")
+    rm.add_argument("capture", help="capture folder")
+    rm.add_argument("--device", help="iPhone model, when the capture files don't record it")
+    rm.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
+    rm.add_argument("--out", default="outputs", help="output folder")
+    rm.set_defaults(func=cmd_rooms)
     return parser
 
 
