@@ -31,3 +31,8 @@ outputs/
 Thumbs.db
 .vscode/
 .idea/
+
+# Provided sample captures (Stray Scanner exports, ~900 MB) — kept local
+/single_room/
+/single_scan_floor_only/
+/single_scan_with_ceiling/
