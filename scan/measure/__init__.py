@@ -130,9 +130,15 @@ def _candidate_lines(layout: RoomLayout, rid: int, lines: list[WallLine]) -> lis
 
 
 def _outline_lines(layout: RoomLayout, rid: int, existing: list[WallLine],
-                   min_len: float = 0.4, near: float = 0.25) -> list[WallLine]:
-    """Inferred lines on straight runs of the room's region boundary that no wall explains
-    (e.g. a wide opening where C6 split two spaces), so rectangles can't leak across."""
+                   min_len: float = 0.3, near: float = 0.04) -> list[WallLine]:
+    """Inferred lines along every straight run of the room's region boundary.
+
+    They cut the arrangement where the region really ends, so rectangles are either mostly
+    inside or mostly outside and the coverage decision is not borderline. Skipping runs near
+    an existing wall (it used to be 25 cm) left big half-covered rectangles that flipped under
+    5 mm of pose noise. A real wall a few cm away still wins: its thin strip is covered by
+    the region grown towards the wall.
+    """
     frame = layout.floor_map.frame
     mask = (layout.labels == rid).astype(np.uint8)
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -150,7 +156,8 @@ def _outline_lines(layout: RoomLayout, rid: int, existing: list[WallLine],
         axis = "u" if dv > du else "v"
         i = 0 if axis == "u" else 1
         coord = float((a[i] + b[i]) / 2)
-        if any(l.axis == axis and abs(l.coord - coord) <= near for l in existing + out):
+        if any(l.axis == axis and l.sign == (1 if centre[i] > coord else -1) and abs(l.coord - coord) <= near
+               for l in existing + out):
             continue
         sign = 1 if centre[i] > coord else -1
         span_i = 1 - i
@@ -211,7 +218,10 @@ def measure_rooms(model: StructureModel, layout: RoomLayout,
     for room in layout.rooms:
         cands = _candidate_lines(layout, room.id, lines)
         cands += _outline_lines(layout, room.id, cands)
-        cands += fallback_lines(_region_bounds_uv(layout, room.id), cands, cfg.fallback_gap_m)
+        # outline lines already follow the region boundary; bounding-box fallbacks are only needed
+        # when a direction would have fewer than two lines (they created big half-outside rectangles)
+        if min(sum(l.axis == a for l in cands) for a in ('u', 'v')) < 2:
+            cands += fallback_lines(_region_bounds_uv(layout, room.id), cands, cfg.fallback_gap_m)
         corners_uv, edges = arrangement_polygon(layout.labels == room.id, frame, cands, cfg)
         n = len(edges)
         walls = []
