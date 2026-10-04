@@ -1,12 +1,28 @@
-# Property Scan AI — High-Level Design (v1)
+# Property Scan AI — High-Level Design (v2, as built)
 
 | | |
 |---|---|
-| **Status** | Draft for review |
-| **Date** | 2026-10-03 |
+| **Status** | As built — v1 plan (2026-10-03) updated with what changed and why (section 0) |
+| **Date** | 2026-10-04 |
 | **Scope** | Round-2 Applied AI case study — handheld iPhone capture → stitched, dimensioned floor plan with damage, scope and calibrated intervals |
 
 ---
+
+## 0. As built: what changed from the v1 plan, and why
+
+Every change below was forced by a measurement on the benchmark flat (details in `docs/LLD/13_video_photo_tiers.md`, `docs/fix_loop.md`).
+
+| Area | v1 plan | As built | Why (measured) |
+|---|---|---|---|
+| Photo / video poses | pycolmap SfM | **Depth Anything 3 (DA3-BASE)**: poses + depth for a set of images jointly | COLMAP registered 0/8 photos per room (taken turning on the spot) and split the video into 18 pieces |
+| Metric scale | Depth Anything V2 Metric-Indoor | **DA3METRIC-LARGE** (focal-aware: m = focal × output / 300) | DA V2 is focal-blind: ceiling 3.67 m vs 2.93 m (+25 %) |
+| Video pipeline | One trajectory, fused | **Room mode**: split the walk into rooms by shared views, reconstruct each like a photo folder | Chunk chains drift 13–33 % in scale; fused rooms smeared (fix loop, 4 attempts) |
+| Photo stitching | Door matching + no-overlap solver | Door matching (C8 doors + door-labelled voxel clusters); **unconnected rooms reported, never guessed** | Benchmark photos never show a doorway from both sides |
+| Drift (LiDAR) | Loop closures + pose graph | Loop closures, else **plane-anchored heading**; measured on every capture, applied above 1° | 3BHK walk has no revisits; correcting 0.85° moved outlines more than it fixed lengths |
+| Damage | OWLv2 + SAM 2-tiny | **OWL-ViT B/32** + classical mask refinement | OWLv2 / SAM 2 too slow on CPU; SAM 2 needs extra deps |
+| Calibration | Per-tier factors | Per tier and quantity, k ≥ 1 (never narrower), leave-one-out coverage reported | n = 4–7 rows per factor |
+| Fusion | One setting | Estimated-depth tiers fuse every pixel, 2 hits per voxel | LiDAR setting kept 9 voxels from 8 photos |
+| Capture protocol | 2–8 photos, any lens | **1× lens, landscape, from the corners across the room**; video through room centres | 0.5× lens: up to 11 % small; portrait: scale unstable; close-ups: no floor |
 
 ## 1. Problem in one paragraph
 
@@ -74,8 +90,8 @@ flowchart LR
 flowchart TB
     RAW["Raw capture files"] --> C1["C1 Ingest<br/>detect tier · device · files"]
     C1 --> AL["LiDAR adapter<br/>sensor depth + conf + ARKit poses"]
-    C1 --> AV["Video adapter<br/>keyframes → metric depth model + COLMAP poses"]
-    C1 --> AP["Photo adapter<br/>per-room photos → metric depth model, no global poses"]
+    C1 --> AV["Video adapter<br/>keyframes → split into rooms → DA3 per room (poses + depth) + DA3METRIC scale"]
+    C1 --> AP["Photo adapter<br/>per-room folder → DA3 poses + depth + DA3METRIC scale"]
     AL --> FS[["FrameSet (common format)<br/>rgb · depth · σ_depth · K · pose? · labels"]]
     AV --> FS
     AP --> FS
@@ -92,15 +108,15 @@ Uncertainty per tier (σ small for LiDAR, medium for video, large for photos) is
 | # | Component | Input → Output | Method / model |
 |---|---|---|---|
 | C1 | **Ingest** | capture dir → `CaptureMeta` | Tier from file layout; device model from metadata; device-matrix lookup |
-| C2 | **Tier adapters** | raw → `FrameSet` | LiDAR: parse Stray export. Video: keyframe selection, metric depth, pycolmap poses, scale fit. Photo: metric depth per photo, EXIF intrinsics |
+| C2 | **Tier adapters** | raw → `FrameSet` | LiDAR: parse Stray export. Video: keyframes → rooms by shared views → DA3 per room. Photo: DA3 per room folder. Scale: DA3METRIC. (v1: pycolmap + DA V2 — replaced, section 0) |
 | C3 | **QC** | `FrameSet` → filtered `FrameSet` + `QualityReport` | Blur, brightness, motion speed, depth confidence, coverage (e.g. ceiling never seen) |
 | C4 | **Semantics** | frames → per-pixel labels | SegFormer (ADE20K): wall, floor, ceiling, door, window, mirror, furniture |
 | C5 | **Drift correction** | poses → corrected poses | Fragments → ICP loop closures → Open3D pose graph + plane/Manhattan anchoring; `--no-drift-fix` for ablation |
 | C6 | **Room segmentation** | fused cloud → rooms | Top-down free-space map → doorway pinch points → rooms. Photo tier: rooms = folders |
 | C7 | **Room geometry** | room points → `Room` | RANSAC planes on wall-labelled points (optionally TSDF-fused), Manhattan snap, polygon from wall intersections, floor/ceiling plane distance, floor area |
 | C8 | **Openings** | wall planes + labels → `Opening[]` | Per-wall 1 cm plane image (on-plane vs through-plane points), SegFormer door/window votes, **high-res RGB edge refinement** across views |
-| C9 | **Stitching** | rooms → `PropertyPlan` | LiDAR/video: shared world frame, adjacency via shared openings. Photo: door matching + no-overlap placement solver |
-| C10 | **Damage** | frames + surfaces → `DamageRegion[]` | OWLv2 (text prompts + decoys) → SAM 2-tiny masks → projection onto surface plane → m² → multi-view fusion |
+| C9 | **Stitching** | rooms → `PropertyPlan` | LiDAR: shared world frame, adjacency via shared openings. Photo / video rooms: placed by matching a door seen from both sides; otherwise reported unconnected |
+| C10 | **Damage** | frames + surfaces → `DamageRegion[]` | OWL-ViT B/32 (text prompts + decoys) → classical mask refinement → projection onto surface plane → m² → multi-view fusion |
 | C11 | **Rules** | damage + surfaces → flags + scope | YAML rules engine; every flag/line item records the rule id |
 | C12 | **Uncertainty + calibration** | raw σ → 90% intervals | σ from fit residuals, depth noise, QC score; per-tier factors fitted on the benchmark; LiDAR depth-scale bias correction against tape |
 | C13 | **Output** | everything → files | pydantic models → `result.json` + generated `schema.json`; SVG plan; template text summary; QC report |
@@ -110,11 +126,11 @@ Uncertainty per tier (σ small for LiDAR, medium for video, large for photos) is
 
 | Step | LiDAR | Video | Photos |
 |---|---|---|---|
-| Depth | Sensor | Depth Anything V2 Metric-Indoor (Small) | Same |
-| Poses | ARKit (Stray) + drift correction | pycolmap on keyframes, scaled by metric depth | None globally; per-room local frames |
-| Scale | Metric (sensor), bias-corrected | Depth model, averaged over many frames, cross-checked with priors | Depth model + priors (door height, ceiling, camera height) |
-| Stitching | Shared world frame + pose graph | Same | Door matching + no-overlap solver |
-| Expected interval width | Narrow (cm) | Medium (~±3%) | Wide (~±8%) |
+| Depth | Sensor | DA3-BASE per room segment | DA3-BASE per room folder |
+| Poses | ARKit (Stray) + drift check / correction | DA3 per room segment (no global frame) | DA3 per room (no global frame) |
+| Scale | Metric (sensor) | DA3METRIC on 4 frames per room | DA3METRIC on 4 photos per room |
+| Stitching | Shared world frame | Door matching between room segments | Door matching between room folders |
+| Interval width (calibrated) | ~±2–9 cm | wide, uncalibrated (gate fails) | ~±0.3 m |
 
 | Device | Photos | Video | LiDAR |
 |---|---|---|---|
@@ -213,11 +229,13 @@ Every numeric field is a `Measure` (value + 90% interval). A measurement that ca
 
 | Purpose | Model / library | Size · CPU speed | Licence |
 |---|---|---|---|
-| Metric depth (photo, video) | Depth Anything V2 Metric-Indoor **Small** | ~25M params · ~1 s/img | Apache-2.0 |
+| Poses + depth (photo, video) | **Depth Anything 3 BASE** (pinned commit) | 0.12B · ~25 s/img on CPU | Apache-2.0 |
+| Metric scale (photo, video) | **DA3METRIC-LARGE** | 0.35B · ~25–60 s/img | Apache-2.0 |
+| Fallback metric depth | Depth Anything V2 Metric-Indoor Small (only without DA3) | ~25M · ~1 s/img | Apache-2.0 |
 | Surface labels | SegFormer B0/B2 (ADE20K) | 4–25M · 0.3–1 s/img | NVIDIA Source Code Licence — **non-commercial**; disclosed. Commercial alternative: Mask2Former Swin-T (MIT, slower) |
-| Video poses | pycolmap (COLMAP SfM) | — · minutes on ~150 keyframes | BSD |
-| Damage proposals | OWLv2 (via transformers) | ~150M · 2–4 s/img | Apache-2.0 |
-| Damage masks | SAM 2-tiny | ~39M · ~1 s/img | Apache-2.0 |
+| Fallback video poses | pycolmap (only without DA3) | — | BSD |
+| Damage proposals | OWL-ViT B/32 (via transformers) | ~150M · ~1 s/img | Apache-2.0 |
+| Damage masks | classical refinement (Lab anomaly + edges) | — | — |
 | Geometry | Open3D (RANSAC, TSDF, ICP, pose graph), numpy, scipy, shapely | — | MIT / BSD |
 | Imaging / QC | opencv-python, pillow | — | Apache / HPND |
 | Contract | pydantic → JSON Schema | — | MIT |
@@ -242,19 +260,24 @@ Principle: **every problem either lowers confidence (wider interval) or produces
 
 ## 10. Accuracy strategy per gate
 
-| Gate | Where it is won | Expectation |
-|---|---|---|
-| Ceiling ≤ 1.5 cm | Plane fits over thousands of points; LiDAR depth-bias correction; protocol makes users tilt up | Borderline → likely pass |
-| Ceiling spread ≤ 1 cm | Determinism, inlier-only fits | Likely pass |
-| Repeatability ≤ 1 cm / 0.5% | Fixed seeds/sampling, robust fits, Manhattan snap | Likely pass (LiDAR) |
-| Drift accountability | C5 + on/off ablation | Pass by construction |
-| Openings ≤ 2 cm on ≥ 85% | TSDF + plane images + **RGB edge refinement** (≈1–2 mm/pixel at 2 m) | Hardest — likely first fix-loop target |
-| Video walls ±3% | COLMAP shape + scale averaged over many frames | Borderline |
-| Photo walls / footprint ±8%, stitch | Multi-cue scale, door matching, no-overlap solver | Borderline |
-| Calibration (all tiers) | C12 per-tier σ factors | In our control |
-| Head-to-head ≥ 70% beat/tie | Same sensor as incumbent + more fusion + edge refinement | Borderline (ties count) |
+| Gate | Where it is won | Expectation (v1) | Measured (benchmark) |
+|---|---|---|---|
+| Ceiling ≤ 1.5 cm | Plane fits over thousands of points; LiDAR depth-bias correction; protocol makes users tilt up | Borderline → likely pass | LiDAR 3/4 (hall −1.8 cm) |
+| Ceiling spread ≤ 1 cm | Determinism, inlier-only fits | Likely pass | not measured at LiDAR (no repeat scan); photo repeat fails |
+| Repeatability ≤ 1 cm / 0.5% | Fixed seeds/sampling, robust fits, Manhattan snap | Likely pass (LiDAR) | fails: photo scale varies 8–15 %; LiDAR outlines unstable under cm pose changes |
+| Drift accountability | C5 + on/off ablation | Pass by construction | met: drift measured, ablation on the 3BHK |
+| Openings ≤ 2 cm on ≥ 85% | TSDF + plane images + **RGB edge refinement** (≈1–2 mm/pixel at 2 m) | Hardest — likely first fix-loop target | not scored (no opening ground truth) |
+| Video walls ±3% | COLMAP shape + scale averaged over many frames | Borderline | fails: 0/10 matched (fix-loop target) |
+| Photo walls / footprint ±8%, stitch | Multi-cue scale, door matching, no-overlap solver | Borderline | walls 7/7 pass; stitch fails (rooms unconnected) |
+| Calibration (all tiers) | C12 per-tier σ factors | In our control | LiDAR / photo calibrated (leave-one-out 75–100 %); video not calibratable |
+| Head-to-head ≥ 70% beat/tie | Same sensor as incumbent + more fusion + edge refinement | Borderline (ties count) | pass: 11/12 = 92 % vs Polycam |
 
 ## 11. Model risk management
+
+> **Outcome (as built):** this escalation plan played out. pycolmap failed on the benchmark (section 0) and
+> was replaced by DA3; the video path ended where its last fallback pointed — *degrade video to the photo
+> tier* — as room mode. OWLv2 + SAM 2 were replaced by OWL-ViT B/32 + classical refinement for CPU speed.
+> The table below is the original plan, kept as written.
 
 ### 11.1 Measure every model separately
 

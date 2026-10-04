@@ -180,7 +180,7 @@ footer{font-size:12.5px;color:var(--muted);text-align:center}
 
   <header class="titleblock">
     <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
-      <span class="eyebrow">High-level design · v1 draft</span>
+      <span class="eyebrow">High-level design · v2, as built</span>
       <h1>Property Scan AI</h1>
       <p class="lede">An iPhone walk-through goes in. A stitched, dimensioned floor plan comes out, with damage, repair scope and an honest <span class="mono">±</span> on every number. It works from photos, video or LiDAR, offline, with one command.</p>
     </div>
@@ -233,7 +233,7 @@ footer{font-size:12.5px;color:var(--muted);text-align:center}
     <div class="pipeline">
       <div class="adapters">
         <div class="adapter l"><h3 class="t-lidar">LiDAR adapter</h3><small>Sensor depth + confidence + ARKit poses. Small σ.</small></div>
-        <div class="adapter v"><h3 class="t-video">Video adapter</h3><small>Keyframes → metric depth model + COLMAP poses. Medium σ.</small></div>
+        <div class="adapter v"><h3 class="t-video">Video adapter</h3><small>Keyframes → split into rooms → DA3 poses + depth per room, DA3METRIC scale. Wide σ.</small></div>
         <div class="adapter p"><h3 class="t-photo">Photo adapter</h3><small>Per-room photos → metric depth model, no global poses. Large σ.</small></div>
       </div>
       <div class="funnel" aria-hidden="true">↓ ↓ ↓</div>
@@ -279,7 +279,7 @@ footer{font-size:12.5px;color:var(--muted);text-align:center}
       </article>
       <article class="tier">
         <header><h3 class="t-video">Video</h3><span class="chip">Any iPhone 15+</span></header>
-        <dl class="kv"><dt>Depth</dt><dd>Depth Anything V2</dd><dt>Poses</dt><dd>COLMAP</dd><dt>Gate</dt><dd class="mono">walls ±3%</dd></dl>
+        <dl class="kv"><dt>Depth</dt><dd>Depth Anything 3</dd><dt>Poses</dt><dd>DA3, per room segment</dd><dt>Gate</dt><dd class="mono">walls ±3% (fails)</dd></dl>
         <div class="dim">
           <svg viewBox="0 0 300 46" role="img" aria-label="Medium interval, plus or minus 3 percent">
             <line x1="10" y1="30" x2="290" y2="30" stroke="var(--rule)" stroke-width="2"/>
@@ -291,7 +291,7 @@ footer{font-size:12.5px;color:var(--muted);text-align:center}
       </article>
       <article class="tier">
         <header><h3 class="t-photo">Photos</h3><span class="chip">Any iPhone 15+</span></header>
-        <dl class="kv"><dt>Depth</dt><dd>Depth Anything V2</dd><dt>Poses</dt><dd>None, door matching</dd><dt>Gate</dt><dd class="mono">walls ±8%</dd></dl>
+        <dl class="kv"><dt>Depth</dt><dd>Depth Anything 3</dd><dt>Poses</dt><dd>DA3 per room, door matching</dd><dt>Gate</dt><dd class="mono">walls ±8% (7/7 pass)</dd></dl>
         <div class="dim">
           <svg viewBox="0 0 300 46" role="img" aria-label="Wide interval, plus or minus 8 percent">
             <line x1="10" y1="30" x2="290" y2="30" stroke="var(--rule)" stroke-width="2"/>
@@ -386,10 +386,10 @@ footer{font-size:12.5px;color:var(--muted);text-align:center}
     <div class="sec-head"><span class="eyebrow">5 · Model stack</span><h2 id="s5">Small pretrained models where sensors fall short, maths everywhere else</h2>
       <p class="muted">All CPU-friendly and offline. Weights are downloaded by a setup script, never committed. No LLMs or cloud APIs in v1.</p></div>
     <div class="models">
-      <div class="model"><h3>Depth Anything V2 · Metric Indoor S</h3><div class="tags"><span class="chip"><span class="dot bg-video"></span>video</span><span class="chip"><span class="dot bg-photo"></span>photo</span></div><p>Distance in metres for every pixel of an ordinary photo. Stands in for the LiDAR sensor.</p></div>
+      <div class="model"><h3>Depth Anything 3 · BASE + METRIC-LARGE</h3><div class="tags"><span class="chip"><span class="dot bg-video"></span>video</span><span class="chip"><span class="dot bg-photo"></span>photo</span></div><p>Camera positions and depth for a set of ordinary photos at once; the metric model turns them into metres using the lens focal length. Stands in for the LiDAR sensor and ARKit.</p></div>
       <div class="model"><h3>SegFormer · ADE20K</h3><div class="tags"><span class="chip">all tiers</span></div><p>Labels wall, floor, ceiling, door, window and mirror, so furniture doesn't distort the room.</p></div>
-      <div class="model"><h3>pycolmap</h3><div class="tags"><span class="chip"><span class="dot bg-video"></span>video</span></div><p>Camera motion from video frames (structure from motion). Scale comes from the depth model.</p></div>
-      <div class="model"><h3>OWLv2 + SAM 2-tiny</h3><div class="tags"><span class="chip">damage</span></div><p>Finds "water stain" or "crack" from a text prompt, then outlines the exact pixels.</p></div>
+      <div class="model"><h3>Room splitter</h3><div class="tags"><span class="chip"><span class="dot bg-video"></span>video</span></div><p>Splits a walkthrough into rooms by which frames share views, then treats each room like a photo folder. (Replaced COLMAP, which broke the video into 18 pieces.)</p></div>
+      <div class="model"><h3>OWL-ViT B/32 + mask refinement</h3><div class="tags"><span class="chip">damage</span></div><p>Finds "water stain" or "crack" from a text prompt, then outlines the exact pixels.</p></div>
       <div class="model"><h3>Open3D</h3><div class="tags"><span class="chip">geometry</span></div><p>Plane fitting (RANSAC), surface fusion (TSDF), alignment (ICP), pose graph for drift.</p></div>
       <div class="model"><h3>pydantic · svgwrite</h3><div class="tags"><span class="chip">output</span></div><p>Validated JSON with a generated published schema, and the rendered SVG floor plan.</p></div>
     </div>
@@ -440,7 +440,7 @@ footer{font-size:12.5px;color:var(--muted);text-align:center}
           <tr><td>Calibration</td><td class="mono">every tier</td><td>Per-tier σ factors fitted on the benchmark</td><td><span class="pill g">in our control</span></td></tr>
           <tr><td>Repeatability</td><td class="mono">≤ 1 cm / 0.5%</td><td>Deterministic pipeline, robust fits, Manhattan snap</td><td><span class="pill g">likely pass</span></td></tr>
           <tr><td>Ceiling height</td><td class="mono">≤ 1.5 cm</td><td>Plane fits over thousands of points, LiDAR bias correction, protocol says tilt up</td><td><span class="pill y">borderline</span></td></tr>
-          <tr><td>Video walls</td><td class="mono">± 3%</td><td>COLMAP shape, scale averaged across many frames</td><td><span class="pill y">borderline</span></td></tr>
+          <tr><td>Video walls</td><td class="mono">± 3%</td><td>DA3 per room segment; scale drifts between segments</td><td><span class="pill y">fails (fix loop)</span></td></tr>
           <tr><td>Photo walls, footprint, stitch</td><td class="mono">± 8%</td><td>Multi-cue scale, door matching, no-overlap solver</td><td><span class="pill y">borderline</span></td></tr>
           <tr><td>Head-to-head vs Polycam</td><td class="mono">≥ 70% beat/tie</td><td>Same sensor, more fusion, edge refinement</td><td><span class="pill y">borderline</span></td></tr>
           <tr><td>Opening widths</td><td class="mono">≤ 2 cm on ≥ 85%</td><td>Plane images + high-res RGB edge refinement (≈1–2 mm per pixel)</td><td><span class="pill r">hardest · fix-loop target</span></td></tr>
@@ -492,5 +492,5 @@ footer{font-size:12.5px;color:var(--muted);text-align:center}
     </div>
   </section>
 
-  <footer>Property Scan AI · HLD v1 draft · detailed spec in <span class="mono">docs/HLD.md</span></footer>
+  <footer>Property Scan AI · HLD v2, as built · what changed and why: docs/HLD.md section 0 · detailed spec in <span class="mono">docs/HLD.md</span></footer>
 </div>
