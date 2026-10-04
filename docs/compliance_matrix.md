@@ -63,7 +63,7 @@ Requirement (from the brief) → where it is met → artifact → status. Status
 | # | Requirement | File | Status |
 |---|---|---|---|
 | 5.1 | Commit history as work happens | git log | ✅ |
-| D3 | README: fresh capture → result in < 15 min on a clean machine | `README.md` | ❌ to write + clean-machine test |
+| D3 | README: fresh capture → result in < 15 min on a clean machine | `README.md` | 🟡 tested on a clean clone: works, results identical to the benchmark; 25 min setup (downloads) + 6 min first run — over 15 min on a home connection |
 | D4 | Reproduction bundle (regenerate every number; cache replays deterministically; live path runs) | — | ❌ to build |
 | D5 | Benchmark report: all tiers, repeatability, head-to-head, timing | `bench/REPORT.md` (generated) | ✅ |
 | D7 | Technical report ≤ 6 pages | `docs/technical_report.md` (~4 pages) | ✅ |
