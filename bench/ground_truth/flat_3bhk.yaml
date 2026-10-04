@@ -22,6 +22,11 @@ rooms:
   kitchen: {dims: [3.00, 2.5], ceiling: 2.90, approx: [dim1]}
   hall: {area: 36.0, dims: [8.5, 3.5], ceiling: 2.50, approx: [dim0, dim1]}
 
+# Staged damage (2026-10-04 evening), photographed in photos_damage/Room_1. One class only: a coffee
+# stain with drips staged as a water stain. Size by tape; height above the floor approximate for now.
+damage:
+  - {room: room_1, class: water_stain, width: 0.24, height: 0.18, bottom_above_floor: 1.0, approx: [bottom_above_floor], captures: [photos_damage]}
+
 # Ground-truth room -> pipeline room, per capture.
 #   photos_flat: by folder name (no judgement).
 #   lidar_flat: read from the frozen blind plan (bench/runs/blind_v1/lidar_flat/plan.png) by room position.
@@ -33,7 +38,10 @@ mapping:
   photos_v4: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
   photos_v5: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
   photos_v6: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
+  photos_repeat: {room_3: room_3}
+  photos_damage: {room_1: room_1}
   video_v2: {}
+  video_v3: {room_1: room_4}   # rooms_mode run; identified by content (bed + curtained window = Room_1, segment 3); other rooms produced no room
   video_flat: {}   # empty on purpose: the video tier's rooms are partial (per-chunk views, 9 overlaps) and none
                    # can be identified with a tape-measured room without judgement, so every item counts as missed
 

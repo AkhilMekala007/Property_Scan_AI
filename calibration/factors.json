@@ -3,8 +3,8 @@
   "min_rows": 4,
   "sources": [
     "bench/reports/lidar_flat/lidar_flat.json",
-    "bench/reports/photos_flat/photos_flat.json",
-    "bench/reports/video_flat/video_flat.json"
+    "bench/reports/photos_v4_uncalibrated/photos_v4.json",
+    "bench/reports/video_v3/video_v3.json"
   ],
   "factors": [
     {
@@ -28,7 +28,7 @@
     {
       "tier": "photo",
       "kind": "ceiling",
-      "k": 2.321,
+      "k": 1.723,
       "n": 4,
       "coverage_before": 0.75,
       "coverage_after": 1.0,

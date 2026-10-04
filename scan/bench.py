@@ -200,7 +200,37 @@ def benchmark(result_path: Path, gt_path: Path, capture: str) -> BenchReport:
             diff = abs(err) - abs(row.app_error)
             row.verdict = "tie" if abs(diff) <= TIE_M else ("win" if diff < 0 else "loss")
         rows.append(row)
+    rows += _damage_rows(result, gt, mapping, capture)
     return BenchReport(capture, tier, rows, _summary(rows))
+
+
+def _damage_rows(result: dict, gt: dict, mapping: dict, capture: str = "") -> list[Row]:
+    """Staged damage: detected (same class, mapped room)? Extent and area vs tape (no gate in the brief)."""
+    rows = []
+    rooms = {r["name"]: r["id"] for r in result.get("rooms", []) if "name" in r}
+    for k, d in enumerate(gt.get("damage") or []):
+        if d.get("captures") and capture not in d["captures"]:
+            continue  # staged after / outside this capture
+        ours_room = mapping.get(d["room"])
+        if ours_room is None:
+            continue  # this capture does not contain the damaged room
+        rid = rooms.get(ours_room)
+        found = [x for x in result.get("damage", []) if x["room_id"] == rid and x["cls"] == d["class"]]
+        label = f"{d['room']}.damage{k}.{d['class']}"
+        gate = "info (detection + extent; no damage gate in the brief)"
+        if not found:
+            rows.append(Row(f"{label}.detected", "damage", None, 1.0, 0.0, None, None, None, None, gate, None))
+            continue
+        best = max(found, key=lambda x: x["area"]["value"])
+        w, h = sorted(best["extent_m"], reverse=True)
+        tw, th = sorted([d["width"], d["height"]], reverse=True)
+        a = best["area"]
+        for name, ours, truth, lo, hi in (("width", w, tw, None, None), ("height", h, th, None, None),
+                                          ("area", a["value"], tw * th, a["lo"], a["hi"])):
+            inside = None if lo is None else bool(lo <= truth <= (hi if hi is not None else float("inf")))
+            rows.append(Row(f"{label}.{name}", "damage", best["id"], round(truth, 4), round(ours, 4), lo, hi,
+                            round(ours - truth, 4), inside, gate, None))
+    return rows
 
 
 def _summary(rows: list[Row]) -> dict:
@@ -235,8 +265,15 @@ def to_markdown(rep: BenchReport) -> str:
              "| Item | Ours id | Truth | Ours [90 % interval] | Error | Inside | Gate | Pass | App | App error | Verdict |",
              "|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in rep.rows:
-        ours = "—" if r.ours is None else f"{r.ours:.3f} [{r.lo:.3f}, {'—' if r.hi is None else f'{r.hi:.3f}'}]"
+        if r.ours is None:
+            ours = "—"
+        elif r.lo is None:
+            ours = f"{r.ours:.3f}"
+        else:
+            ours = f"{r.ours:.3f} [{r.lo:.3f}, {'—' if r.hi is None else f'{r.hi:.3f}'}]"
         err = "missed" if r.error is None else (f"{r.error:+.2f} m2" if r.kind == "area" else f"{r.error * 100:+.1f} cm")
+        if r.kind == "damage" and r.key.endswith(".detected"):
+            err = "not detected"
         app = "" if r.app is None else f"{r.app:.3f}"
         app_err = "" if r.app_error is None else (f"{r.app_error:+.2f} m2" if r.kind == "area" else f"{r.app_error * 100:+.1f} cm")
         lines.append(f"| {r.key} | {r.ours_id or '—'} | {r.truth:.3f} | {ours} | {err} | "
