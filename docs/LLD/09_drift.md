@@ -76,3 +76,34 @@ Yaw projection removes roll/pitch; constraint ratio flags a single wall; clean s
 - Loop closures need revisits; a single pass through a property gives the optimiser nothing to correct.
 - Fragments are fixed-size by keyframe count, not by motion.
 - Plane-anchored correction across the whole property is not implemented; the ablation shows no remaining drift on the samples that would motivate it.
+
+## 3BHK benchmark (2026-10-04): no revisits → plane-anchored heading
+
+The 3BHK LiDAR walk never revisits a surface from a similar viewpoint: all 26 loop candidates fail
+"too little overlap" (tight-window fitness ≤ 0.16, threshold 0.30; per-candidate record in
+`DriftReport.checks`). Loop closure therefore cannot act, so the drift step falls back to
+**plane-anchored heading correction**: each 20-keyframe fragment's dominant wall direction (4-fold
+circular mean of vertical normals) is compared with the capture's; the median-smoothed deviation is
+removed by re-integrating each fragment's motion with the corrected heading (positions continuous).
+
+Measured heading drift: **median 0.42°, max 0.85°** over 19 fragments. Correction verified: fragment
+wall-direction deviation 0.51° → 0.10° (median).
+
+Ablation (`scan drift`, correction forced on):
+
+| | Off | On |
+|---|---|---|
+| Wall voxels on fitted planes | 0.753 | 0.82 |
+| Shared walls | 3 | 5 |
+| Big-wall fit spread (median) | 8.4 mm | 9.9 mm |
+| Footprint | 80.9 m² | 79.3 m² |
+| Tape walls in gate (1 cm / 0.5 %) | 4/7 | 2/7 |
+| Tape median wall error | ~1.5 cm | 5.2 cm |
+
+A 0.85° heading error changes a 3.5 m wall's length by < 1 mm, so the correction cannot move lengths by
+centimetres; the tape loss comes from room assembly (C6/C7b) re-forming outlines after a few-cm pose
+change (Room_3's outline grew 3.89 → 4.40 m) — the same amplification that fails the repeatability
+proxy. **Decision (made after this ablation, stated as such):** the heading correction is applied only
+when drift exceeds 1° (`heading_apply_min_deg`); below it the drift is measured and reported in every
+`result.json` (`processing.drift_correction`). The real fix is making room assembly stable under
+cm-level pose changes.

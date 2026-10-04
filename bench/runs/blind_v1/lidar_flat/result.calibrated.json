@@ -1,0 +1,2539 @@
+{
+  "schema_version": "1.0",
+  "capture": {
+    "id": "36c50efbbe",
+    "tier": "lidar",
+    "source_format": "stray_scanner",
+    "device": "iPhone 17 Pro",
+    "device_supported": true,
+    "duration_s": 163.2116270000006,
+    "frames_raw": 8058,
+    "keyframes_used": 387,
+    "quality_score": 0.959,
+    "issues": [],
+    "warnings": [
+      "1 odometry timestamps are not increasing"
+    ]
+  },
+  "processing": {
+    "pipeline_version": "0.1.0",
+    "run_utc": "2026-10-03T16:16:46+00:00",
+    "runtime_s": 363.3,
+    "offline": true,
+    "interval_method": "error budget with benchmark-fitted factors for ceiling, wall (C12); other quantities keep the provisional budget (calibrated: false)",
+    "calibrated": true,
+    "drift_correction": {
+      "enabled": true,
+      "loops_accepted": 0,
+      "loops_tested": 26,
+      "max_translation_m": 0.0,
+      "max_yaw_deg": 0.0,
+      "note": "no loop closures found; poses kept"
+    },
+    "models": [
+      {
+        "key": "segformer-b2-ade",
+        "repo": "nvidia/segformer-b2-finetuned-ade-512-512",
+        "licence": "NVIDIA Source Code License (non-commercial)",
+        "purpose": "C4 surface labels, accurate variant"
+      },
+      {
+        "key": "owlvit-b32",
+        "repo": "google/owlvit-base-patch32",
+        "licence": "Apache-2.0",
+        "purpose": "C10 open-vocabulary damage detection, CPU-fast variant (default)"
+      }
+    ]
+  },
+  "property": {
+    "rooms_count": 5,
+    "net_floor_area": {
+      "value": 78.795,
+      "lo": 77.9382,
+      "hi": 79.6518,
+      "sigma": 0.52088,
+      "unit": "m2",
+      "confidence": 0.9,
+      "bound": "two_sided",
+      "calibrated": false
+    },
+    "footprint_area": {
+      "value": 80.927,
+      "lo": 80.0702,
+      "hi": 81.7838,
+      "sigma": 0.52088,
+      "unit": "m2",
+      "confidence": 0.9,
+      "bound": "two_sided",
+      "calibrated": false
+    },
+    "connected": true,
+    "adjacency": [
+      {
+        "room_a": 1,
+        "room_b": 4,
+        "via": "door",
+        "opening_id": 0
+      },
+      {
+        "room_a": 1,
+        "room_b": 2,
+        "via": "door",
+        "opening_id": 6
+      },
+      {
+        "room_a": 1,
+        "room_b": 3,
+        "via": "door",
+        "opening_id": 9
+      },
+      {
+        "room_a": 1,
+        "room_b": 5,
+        "via": "doorway",
+        "opening_id": null
+      }
+    ],
+    "shared_walls": [
+      {
+        "room_a": 1,
+        "wall_a": "room_1.wall_1",
+        "room_b": 4,
+        "wall_b": "room_4.wall_1",
+        "thickness": {
+          "value": 0.1055,
+          "lo": 0.0825,
+          "hi": 0.1285,
+          "sigma": 0.014,
+          "unit": "m",
+          "confidence": 0.9,
+          "bound": "two_sided",
+          "calibrated": false
+        }
+      },
+      {
+        "room_a": 1,
+        "wall_a": "room_1.wall_12",
+        "room_b": 5,
+        "wall_b": "room_5.wall_2",
+        "thickness": {
+          "value": 0.1865,
+          "lo": 0.1635,
+          "hi": 0.2095,
+          "sigma": 0.014,
+          "unit": "m",
+          "confidence": 0.9,
+          "bound": "two_sided",
+          "calibrated": false
+        }
+      },
+      {
+        "room_a": 2,
+        "wall_a": "room_2.wall_1",
+        "room_b": 3,
+        "wall_b": "room_3.wall_9",
+        "thickness": {
+          "value": 0.0701,
+          "lo": 0.0471,
+          "hi": 0.0931,
+          "sigma": 0.014,
+          "unit": "m",
+          "confidence": 0.9,
+          "bound": "two_sided",
+          "calibrated": false
+        }
+      }
+    ],
+    "overlaps": [],
+    "unmeasured_doorways": 1
+  },
+  "rooms": [
+    {
+      "id": 1,
+      "name": "room_1",
+      "kind": "room",
+      "polygon_xz": [
+        [
+          -1.1486,
+          -4.0579
+        ],
+        [
+          -1.6364,
+          -0.5472
+        ],
+        [
+          -3.1086,
+          -0.7517
+        ],
+        [
+          -3.2722,
+          0.4258
+        ],
+        [
+          -1.8,
+          0.6303
+        ],
+        [
+          -2.3312,
+          4.4537
+        ],
+        [
+          -3.7179,
+          4.261
+        ],
+        [
+          -3.7236,
+          4.3019
+        ],
+        [
+          -2.1929,
+          4.5146
+        ],
+        [
+          -2.4793,
+          6.5758
+        ],
+        [
+          -2.4252,
+          6.5834
+        ],
+        [
+          -2.3636,
+          6.1403
+        ],
+        [
+          -1.216,
+          6.2997
+        ],
+        [
+          -0.9752,
+          4.5664
+        ],
+        [
+          1.4773,
+          4.9071
+        ],
+        [
+          2.6367,
+          -3.4377
+        ],
+        [
+          2.0576,
+          -3.5182
+        ],
+        [
+          2.0705,
+          -3.6106
+        ]
+      ],
+      "floor_area": {
+        "value": 36.6,
+        "lo": 35.9319,
+        "hi": 37.2681,
+        "sigma": 0.40615,
+        "unit": "m2",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "perimeter": {
+        "value": 34.873,
+        "lo": 34.4436,
+        "hi": 35.3024,
+        "sigma": 0.26103,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "ceiling_height": {
+        "value": 2.4822,
+        "lo": 2.4643,
+        "hi": 2.5001,
+        "sigma": 0.0109,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": true
+      },
+      "ceiling_note": null,
+      "floor_tilt_deg": 0.18,
+      "walls": [
+        {
+          "id": "room_1.wall_0",
+          "index": 0,
+          "length": {
+            "value": 3.5444,
+            "lo": 3.4836,
+            "hi": 3.6052,
+            "sigma": 0.03694,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_1.wall_1",
+          "index": 1,
+          "length": {
+            "value": 1.4863,
+            "lo": 1.3331,
+            "hi": 1.6395,
+            "sigma": 0.09312,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.974,
+          "plane_ids": [
+            11
+          ]
+        },
+        {
+          "id": "room_1.wall_2",
+          "index": 2,
+          "length": {
+            "value": 1.1888,
+            "lo": 1.1489,
+            "hi": 1.2287,
+            "sigma": 0.02428,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.966,
+          "plane_ids": [
+            2
+          ]
+        },
+        {
+          "id": "room_1.wall_3",
+          "index": 3,
+          "length": {
+            "value": 1.4863,
+            "lo": 1.3331,
+            "hi": 1.6395,
+            "sigma": 0.09312,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.198,
+          "plane_ids": [
+            24
+          ]
+        },
+        {
+          "id": "room_1.wall_4",
+          "index": 4,
+          "length": {
+            "value": 3.8601,
+            "lo": 3.6998,
+            "hi": 4.0204,
+            "sigma": 0.09743,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_1.wall_5",
+          "index": 5,
+          "length": {
+            "value": 1.4,
+            "lo": 1.1878,
+            "hi": 1.6122,
+            "sigma": 0.12902,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_1.wall_6",
+          "index": 6,
+          "length": {
+            "value": 0.0413,
+            "lo": 0.0,
+            "hi": 0.2515,
+            "sigma": 0.12779,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_1.wall_7",
+          "index": 7,
+          "length": {
+            "value": 1.5453,
+            "lo": 1.3328,
+            "hi": 1.7578,
+            "sigma": 0.12918,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_1.wall_8",
+          "index": 8,
+          "length": {
+            "value": 2.0811,
+            "lo": 1.9264,
+            "hi": 2.2358,
+            "sigma": 0.09405,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_1.wall_9",
+          "index": 9,
+          "length": {
+            "value": 0.0547,
+            "lo": 0.0,
+            "hi": 0.2649,
+            "sigma": 0.12781,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": [
+            28
+          ]
+        },
+        {
+          "id": "room_1.wall_10",
+          "index": 10,
+          "length": {
+            "value": 0.4473,
+            "lo": 0.2964,
+            "hi": 0.5982,
+            "sigma": 0.09172,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_1.wall_11",
+          "index": 11,
+          "length": {
+            "value": 1.1586,
+            "lo": 1.0062,
+            "hi": 1.311,
+            "sigma": 0.09263,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_1.wall_12",
+          "index": 12,
+          "length": {
+            "value": 1.75,
+            "lo": 1.5371,
+            "hi": 1.9629,
+            "sigma": 0.12942,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.817,
+          "plane_ids": [
+            19
+          ]
+        },
+        {
+          "id": "room_1.wall_13",
+          "index": 13,
+          "length": {
+            "value": 2.4761,
+            "lo": 2.4248,
+            "hi": 2.5274,
+            "sigma": 0.03118,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_1.wall_14",
+          "index": 14,
+          "length": {
+            "value": 8.425,
+            "lo": 8.1925,
+            "hi": 8.6575,
+            "sigma": 0.14137,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.723,
+          "plane_ids": [
+            17
+          ]
+        },
+        {
+          "id": "room_1.wall_15",
+          "index": 15,
+          "length": {
+            "value": 0.5847,
+            "lo": 0.4336,
+            "hi": 0.7358,
+            "sigma": 0.09188,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_1.wall_16",
+          "index": 16,
+          "length": {
+            "value": 0.0933,
+            "lo": 0.0,
+            "hi": 0.2436,
+            "sigma": 0.09135,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_1.wall_17",
+          "index": 17,
+          "length": {
+            "value": 3.25,
+            "lo": 3.0339,
+            "hi": 3.4661,
+            "sigma": 0.13135,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.4822,
+            "lo": 2.4657,
+            "hi": 2.4987,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.975,
+          "plane_ids": [
+            13
+          ]
+        }
+      ],
+      "floor_id": "room_1.floor",
+      "ceiling_id": "room_1.ceiling",
+      "opening_ids": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        9
+      ]
+    },
+    {
+      "id": 2,
+      "name": "room_2",
+      "kind": "room",
+      "polygon_xz": [
+        [
+          -4.8402,
+          0.3487
+        ],
+        [
+          -5.3627,
+          4.1099
+        ],
+        [
+          -3.7284,
+          4.337
+        ],
+        [
+          -3.7179,
+          4.261
+        ],
+        [
+          -2.3559,
+          4.4502
+        ],
+        [
+          -1.8439,
+          0.765
+        ]
+      ],
+      "floor_area": {
+        "value": 11.382,
+        "lo": 11.0301,
+        "hi": 11.7339,
+        "sigma": 0.21391,
+        "unit": "m2",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "perimeter": {
+        "value": 13.645,
+        "lo": 13.4268,
+        "hi": 13.8632,
+        "sigma": 0.13264,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "ceiling_height": {
+        "value": 2.9425,
+        "lo": 2.9246,
+        "hi": 2.9604,
+        "sigma": 0.0109,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": true
+      },
+      "ceiling_note": null,
+      "floor_tilt_deg": 0.878,
+      "walls": [
+        {
+          "id": "room_2.wall_0",
+          "index": 0,
+          "length": {
+            "value": 3.7974,
+            "lo": 3.7345,
+            "hi": 3.8603,
+            "sigma": 0.03827,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9425,
+            "lo": 2.926,
+            "hi": 2.959,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_2.wall_1",
+          "index": 1,
+          "length": {
+            "value": 1.65,
+            "lo": 1.4373,
+            "hi": 1.8627,
+            "sigma": 0.12929,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9425,
+            "lo": 2.926,
+            "hi": 2.959,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.966,
+          "plane_ids": [
+            25
+          ]
+        },
+        {
+          "id": "room_2.wall_2",
+          "index": 2,
+          "length": {
+            "value": 0.0767,
+            "lo": 0.0,
+            "hi": 0.2269,
+            "sigma": 0.09131,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9425,
+            "lo": 2.926,
+            "hi": 2.959,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_2.wall_3",
+          "index": 3,
+          "length": {
+            "value": 1.375,
+            "lo": 1.2221,
+            "hi": 1.5279,
+            "sigma": 0.09296,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9425,
+            "lo": 2.926,
+            "hi": 2.959,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_2.wall_4",
+          "index": 4,
+          "length": {
+            "value": 3.7206,
+            "lo": 3.5608,
+            "hi": 3.8804,
+            "sigma": 0.09712,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9425,
+            "lo": 2.926,
+            "hi": 2.959,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.738,
+          "plane_ids": [
+            15
+          ]
+        },
+        {
+          "id": "room_2.wall_5",
+          "index": 5,
+          "length": {
+            "value": 3.025,
+            "lo": 2.8675,
+            "hi": 3.1825,
+            "sigma": 0.09575,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9425,
+            "lo": 2.926,
+            "hi": 2.959,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.743,
+          "plane_ids": [
+            7
+          ]
+        }
+      ],
+      "floor_id": "room_2.floor",
+      "ceiling_id": "room_2.ceiling",
+      "opening_ids": [
+        6
+      ]
+    },
+    {
+      "id": 3,
+      "name": "room_3",
+      "kind": "room",
+      "polygon_xz": [
+        [
+          -5.2981,
+          4.1897
+        ],
+        [
+          -5.3467,
+          4.5395
+        ],
+        [
+          -5.4112,
+          4.5305
+        ],
+        [
+          -5.7656,
+          7.081
+        ],
+        [
+          -5.7011,
+          7.09
+        ],
+        [
+          -5.8816,
+          8.3893
+        ],
+        [
+          -2.8954,
+          8.8041
+        ],
+        [
+          -2.3606,
+          4.9544
+        ],
+        [
+          -2.4495,
+          4.942
+        ],
+        [
+          -2.4009,
+          4.5922
+        ]
+      ],
+      "floor_area": {
+        "value": 12.919,
+        "lo": 12.7144,
+        "hi": 13.1236,
+        "sigma": 0.12439,
+        "unit": "m2",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "perimeter": {
+        "value": 14.64,
+        "lo": 14.3416,
+        "hi": 14.9384,
+        "sigma": 0.1814,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "ceiling_height": {
+        "value": 2.9319,
+        "lo": 2.914,
+        "hi": 2.9498,
+        "sigma": 0.0109,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": true
+      },
+      "ceiling_note": null,
+      "floor_tilt_deg": 0.364,
+      "walls": [
+        {
+          "id": "room_3.wall_0",
+          "index": 0,
+          "length": {
+            "value": 0.3532,
+            "lo": 0.2025,
+            "hi": 0.5039,
+            "sigma": 0.09161,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9319,
+            "lo": 2.9154,
+            "hi": 2.9484,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_3.wall_1",
+          "index": 1,
+          "length": {
+            "value": 0.0651,
+            "lo": 0.0,
+            "hi": 0.2153,
+            "sigma": 0.09129,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9319,
+            "lo": 2.9154,
+            "hi": 2.9484,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_3.wall_2",
+          "index": 2,
+          "length": {
+            "value": 2.575,
+            "lo": 2.3605,
+            "hi": 2.7895,
+            "sigma": 0.13042,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9319,
+            "lo": 2.9154,
+            "hi": 2.9484,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.497,
+          "plane_ids": [
+            6
+          ]
+        },
+        {
+          "id": "room_3.wall_3",
+          "index": 3,
+          "length": {
+            "value": 0.0651,
+            "lo": 0.0,
+            "hi": 0.2153,
+            "sigma": 0.09129,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9319,
+            "lo": 2.9154,
+            "hi": 2.9484,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_3.wall_4",
+          "index": 4,
+          "length": {
+            "value": 1.3117,
+            "lo": 1.1589,
+            "hi": 1.4645,
+            "sigma": 0.09287,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9319,
+            "lo": 2.9154,
+            "hi": 2.9484,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_3.wall_5",
+          "index": 5,
+          "length": {
+            "value": 3.0148,
+            "lo": 2.8574,
+            "hi": 3.1722,
+            "sigma": 0.09571,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9319,
+            "lo": 2.9154,
+            "hi": 2.9484,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.935,
+          "plane_ids": [
+            26
+          ]
+        },
+        {
+          "id": "room_3.wall_6",
+          "index": 6,
+          "length": {
+            "value": 3.8867,
+            "lo": 3.7264,
+            "hi": 4.047,
+            "sigma": 0.09748,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9319,
+            "lo": 2.9154,
+            "hi": 2.9484,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.743,
+          "plane_ids": [
+            14
+          ]
+        },
+        {
+          "id": "room_3.wall_7",
+          "index": 7,
+          "length": {
+            "value": 0.0898,
+            "lo": 0.0,
+            "hi": 0.24,
+            "sigma": 0.09131,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9319,
+            "lo": 2.9154,
+            "hi": 2.9484,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_3.wall_8",
+          "index": 8,
+          "length": {
+            "value": 0.3532,
+            "lo": 0.2025,
+            "hi": 0.5039,
+            "sigma": 0.09161,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9319,
+            "lo": 2.9154,
+            "hi": 2.9484,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_3.wall_9",
+          "index": 9,
+          "length": {
+            "value": 2.925,
+            "lo": 2.7097,
+            "hi": 3.1403,
+            "sigma": 0.13088,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9319,
+            "lo": 2.9154,
+            "hi": 2.9484,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.497,
+          "plane_ids": [
+            9
+          ]
+        }
+      ],
+      "floor_id": "room_3.floor",
+      "ceiling_id": "room_3.ceiling",
+      "opening_ids": [
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "id": 4,
+      "name": "room_4",
+      "kind": "room",
+      "polygon_xz": [
+        [
+          -4.3561,
+          -4.4068
+        ],
+        [
+          -4.8162,
+          -1.0955
+        ],
+        [
+          -1.8415,
+          -0.6822
+        ],
+        [
+          -1.8318,
+          -0.7521
+        ],
+        [
+          -1.6702,
+          -0.7297
+        ],
+        [
+          -1.2199,
+          -3.9711
+        ]
+      ],
+      "floor_area": {
+        "value": 10.574,
+        "lo": 10.2605,
+        "hi": 10.8875,
+        "sigma": 0.1906,
+        "unit": "m2",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "perimeter": {
+        "value": 13.019,
+        "lo": 12.8358,
+        "hi": 13.2022,
+        "sigma": 0.11139,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "ceiling_height": {
+        "value": 2.9016,
+        "lo": 2.8837,
+        "hi": 2.9195,
+        "sigma": 0.01091,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": true
+      },
+      "ceiling_note": null,
+      "floor_tilt_deg": 0.739,
+      "walls": [
+        {
+          "id": "room_4.wall_0",
+          "index": 0,
+          "length": {
+            "value": 3.3431,
+            "lo": 3.2842,
+            "hi": 3.402,
+            "sigma": 0.03583,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9016,
+            "lo": 2.8851,
+            "hi": 2.9181,
+            "sigma": 0.01001,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_4.wall_1",
+          "index": 1,
+          "length": {
+            "value": 3.0032,
+            "lo": 2.8458,
+            "hi": 3.1606,
+            "sigma": 0.09569,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9016,
+            "lo": 2.8851,
+            "hi": 2.9181,
+            "sigma": 0.01001,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.961,
+          "plane_ids": [
+            23
+          ]
+        },
+        {
+          "id": "room_4.wall_2",
+          "index": 2,
+          "length": {
+            "value": 0.0706,
+            "lo": 0.0,
+            "hi": 0.2208,
+            "sigma": 0.09129,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9016,
+            "lo": 2.8851,
+            "hi": 2.9181,
+            "sigma": 0.01001,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.962,
+          "plane_ids": [
+            20
+          ]
+        },
+        {
+          "id": "room_4.wall_3",
+          "index": 3,
+          "length": {
+            "value": 0.1632,
+            "lo": 0.1323,
+            "hi": 0.1941,
+            "sigma": 0.01878,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9016,
+            "lo": 2.8851,
+            "hi": 2.9181,
+            "sigma": 0.01001,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_4.wall_4",
+          "index": 4,
+          "length": {
+            "value": 3.2725,
+            "lo": 3.1142,
+            "hi": 3.4308,
+            "sigma": 0.09621,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9016,
+            "lo": 2.8851,
+            "hi": 2.9181,
+            "sigma": 0.01001,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.418,
+          "plane_ids": [
+            16
+          ]
+        },
+        {
+          "id": "room_4.wall_5",
+          "index": 5,
+          "length": {
+            "value": 3.1664,
+            "lo": 3.0085,
+            "hi": 3.3243,
+            "sigma": 0.09602,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9016,
+            "lo": 2.8851,
+            "hi": 2.9181,
+            "sigma": 0.01001,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.919,
+          "plane_ids": [
+            10
+          ]
+        }
+      ],
+      "floor_id": "room_4.floor",
+      "ceiling_id": "room_4.ceiling",
+      "opening_ids": [
+        0,
+        10
+      ]
+    },
+    {
+      "id": 5,
+      "name": "room_5",
+      "kind": "room",
+      "polygon_xz": [
+        [
+          -0.9601,
+          4.7582
+        ],
+        [
+          -1.0993,
+          5.7606
+        ],
+        [
+          -0.9556,
+          5.7806
+        ],
+        [
+          -1.2205,
+          7.6873
+        ],
+        [
+          -0.9681,
+          7.7224
+        ],
+        [
+          -0.9761,
+          7.7805
+        ],
+        [
+          1.148,
+          8.0756
+        ],
+        [
+          1.5602,
+          5.1084
+        ]
+      ],
+      "floor_area": {
+        "value": 7.32,
+        "lo": 7.1657,
+        "hi": 7.4743,
+        "sigma": 0.09383,
+        "unit": "m2",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "perimeter": {
+        "value": 11.08,
+        "lo": 10.8367,
+        "hi": 11.3233,
+        "sigma": 0.14788,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "ceiling_height": {
+        "value": 2.9098,
+        "lo": 2.8919,
+        "hi": 2.9277,
+        "sigma": 0.0109,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": true
+      },
+      "ceiling_note": null,
+      "floor_tilt_deg": 0.721,
+      "walls": [
+        {
+          "id": "room_5.wall_0",
+          "index": 0,
+          "length": {
+            "value": 1.012,
+            "lo": 0.8599,
+            "hi": 1.1641,
+            "sigma": 0.09244,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9098,
+            "lo": 2.8933,
+            "hi": 2.9263,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_5.wall_1",
+          "index": 1,
+          "length": {
+            "value": 0.1451,
+            "lo": 0.0,
+            "hi": 0.2954,
+            "sigma": 0.09138,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9098,
+            "lo": 2.8933,
+            "hi": 2.9263,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_5.wall_2",
+          "index": 2,
+          "length": {
+            "value": 1.925,
+            "lo": 1.7118,
+            "hi": 2.1382,
+            "sigma": 0.12961,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9098,
+            "lo": 2.8933,
+            "hi": 2.9263,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.891,
+          "plane_ids": [
+            3
+          ]
+        },
+        {
+          "id": "room_5.wall_3",
+          "index": 3,
+          "length": {
+            "value": 0.2549,
+            "lo": 0.1044,
+            "hi": 0.4054,
+            "sigma": 0.09151,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9098,
+            "lo": 2.8933,
+            "hi": 2.9263,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_5.wall_4",
+          "index": 4,
+          "length": {
+            "value": 0.0587,
+            "lo": 0.0,
+            "hi": 0.2089,
+            "sigma": 0.09129,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9098,
+            "lo": 2.8933,
+            "hi": 2.9263,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": false,
+          "coverage": 0.0,
+          "plane_ids": []
+        },
+        {
+          "id": "room_5.wall_5",
+          "index": 5,
+          "length": {
+            "value": 2.1445,
+            "lo": 1.9896,
+            "hi": 2.2994,
+            "sigma": 0.09416,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9098,
+            "lo": 2.8933,
+            "hi": 2.9263,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 1.0,
+          "plane_ids": [
+            29
+          ]
+        },
+        {
+          "id": "room_5.wall_6",
+          "index": 6,
+          "length": {
+            "value": 2.9957,
+            "lo": 2.9398,
+            "hi": 3.0516,
+            "sigma": 0.03397,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9098,
+            "lo": 2.8933,
+            "hi": 2.9263,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.948,
+          "plane_ids": [
+            18
+          ]
+        },
+        {
+          "id": "room_5.wall_7",
+          "index": 7,
+          "length": {
+            "value": 2.5445,
+            "lo": 2.3885,
+            "hi": 2.7005,
+            "sigma": 0.09485,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": true
+          },
+          "height": {
+            "value": 2.9098,
+            "lo": 2.8933,
+            "hi": 2.9263,
+            "sigma": 0.01,
+            "unit": "m",
+            "confidence": 0.9,
+            "bound": "two_sided",
+            "calibrated": false
+          },
+          "observed": true,
+          "coverage": 0.896,
+          "plane_ids": [
+            8
+          ]
+        }
+      ],
+      "floor_id": "room_5.floor",
+      "ceiling_id": "room_5.ceiling",
+      "opening_ids": [
+        11,
+        12,
+        13
+      ]
+    }
+  ],
+  "openings": [
+    {
+      "id": 0,
+      "type": "door",
+      "rooms": [
+        1,
+        4
+      ],
+      "wall_ids": [
+        "room_1.wall_1",
+        "room_4.wall_1"
+      ],
+      "width": {
+        "value": 0.5727,
+        "lo": 0.5452,
+        "hi": 0.6002,
+        "sigma": 0.01673,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "height": {
+        "value": 2.048,
+        "lo": 2.0151,
+        "hi": 2.0809,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "sill": null,
+      "center_xz": [
+        -2.2395,
+        -0.6843
+      ],
+      "views": 2,
+      "covered": false,
+      "low_evidence": false
+    },
+    {
+      "id": 1,
+      "type": "opening",
+      "rooms": [
+        1
+      ],
+      "wall_ids": [
+        "room_1.wall_14"
+      ],
+      "width": {
+        "value": 0.7148,
+        "lo": 0.687,
+        "hi": 0.7426,
+        "sigma": 0.01691,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "height": {
+        "value": 2.387,
+        "lo": 2.3541,
+        "hi": 2.4199,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "sill": null,
+      "center_xz": [
+        2.5379,
+        -2.7265
+      ],
+      "views": 1,
+      "covered": false,
+      "low_evidence": false
+    },
+    {
+      "id": 2,
+      "type": "window",
+      "rooms": [
+        1
+      ],
+      "wall_ids": [
+        "room_1.wall_14"
+      ],
+      "width": {
+        "value": 0.6839,
+        "lo": 0.6581,
+        "hi": 0.7097,
+        "sigma": 0.01566,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "height": {
+        "value": 2.159,
+        "lo": 2.1261,
+        "hi": 2.1919,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "sill": {
+        "value": 0.835,
+        "lo": 0.8021,
+        "hi": 0.8679,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "center_xz": [
+        1.6861,
+        3.4043
+      ],
+      "views": 1,
+      "covered": false,
+      "low_evidence": false
+    },
+    {
+      "id": 3,
+      "type": "window",
+      "rooms": [
+        1
+      ],
+      "wall_ids": [
+        "room_1.wall_14"
+      ],
+      "width": {
+        "value": 1.1187,
+        "lo": 1.0928,
+        "hi": 1.1446,
+        "sigma": 0.01575,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "height": {
+        "value": 2.109,
+        "lo": 2.0761,
+        "hi": 2.1419,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "sill": {
+        "value": 0.836,
+        "lo": 0.8031,
+        "hi": 0.8689,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "center_xz": [
+        2.1495,
+        0.0694
+      ],
+      "views": 1,
+      "covered": false,
+      "low_evidence": false
+    },
+    {
+      "id": 4,
+      "type": "window",
+      "rooms": [
+        1
+      ],
+      "wall_ids": [
+        "room_1.wall_17"
+      ],
+      "width": {
+        "value": 0.5014,
+        "lo": 0.3825,
+        "hi": 0.6203,
+        "sigma": 0.07227,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "height": {
+        "value": 2.126,
+        "lo": 2.0931,
+        "hi": 2.1589,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "sill": {
+        "value": 0.843,
+        "lo": 0.8101,
+        "hi": 0.8759,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "center_xz": [
+        1.0213,
+        -3.7564
+      ],
+      "views": 1,
+      "covered": true,
+      "low_evidence": false
+    },
+    {
+      "id": 5,
+      "type": "window",
+      "rooms": [
+        1
+      ],
+      "wall_ids": [
+        "room_1.wall_17"
+      ],
+      "width": {
+        "value": 0.8459,
+        "lo": 0.727,
+        "hi": 0.9648,
+        "sigma": 0.07227,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "height": {
+        "value": 2.124,
+        "lo": 2.0911,
+        "hi": 2.1569,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "sill": {
+        "value": 0.892,
+        "lo": 0.8591,
+        "hi": 0.9249,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "center_xz": [
+        0.5431,
+        -3.8228
+      ],
+      "views": 1,
+      "covered": true,
+      "low_evidence": false
+    },
+    {
+      "id": 6,
+      "type": "door",
+      "rooms": [
+        1,
+        2
+      ],
+      "wall_ids": [
+        "room_2.wall_5"
+      ],
+      "width": {
+        "value": 0.5794,
+        "lo": 0.5532,
+        "hi": 0.6056,
+        "sigma": 0.01591,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "height": {
+        "value": 2.05,
+        "lo": 2.0171,
+        "hi": 2.0829,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "sill": null,
+      "center_xz": [
+        -2.5694,
+        0.6642
+      ],
+      "views": 1,
+      "covered": false,
+      "low_evidence": false
+    },
+    {
+      "id": 7,
+      "type": "opening",
+      "rooms": [
+        3
+      ],
+      "wall_ids": [
+        "room_3.wall_2"
+      ],
+      "width": {
+        "value": 1.1382,
+        "lo": 1.1121,
+        "hi": 1.1643,
+        "sigma": 0.01584,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "height": {
+        "value": 2.078,
+        "lo": 2.0451,
+        "hi": 2.1109,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "sill": null,
+      "center_xz": [
+        -5.4949,
+        5.1328
+      ],
+      "views": 1,
+      "covered": false,
+      "low_evidence": false
+    },
+    {
+      "id": 8,
+      "type": "window",
+      "rooms": [
+        3
+      ],
+      "wall_ids": [
+        "room_3.wall_5"
+      ],
+      "width": {
+        "value": 0.8987,
+        "lo": 0.7798,
+        "hi": 1.0176,
+        "sigma": 0.07227,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "height": {
+        "value": 1.96,
+        "lo": 1.96,
+        "hi": null,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "lower",
+        "calibrated": false
+      },
+      "sill": {
+        "value": 0.821,
+        "lo": 0.7881,
+        "hi": 0.8539,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "center_xz": [
+        -3.7933,
+        8.6794
+      ],
+      "views": 1,
+      "covered": true,
+      "low_evidence": false
+    },
+    {
+      "id": 9,
+      "type": "door",
+      "rooms": [
+        1,
+        3
+      ],
+      "wall_ids": [
+        "room_3.wall_6"
+      ],
+      "width": {
+        "value": 0.5834,
+        "lo": 0.5576,
+        "hi": 0.6092,
+        "sigma": 0.01566,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "height": {
+        "value": 2.058,
+        "lo": 2.0251,
+        "hi": 2.0909,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "sill": null,
+      "center_xz": [
+        -2.4014,
+        5.2487
+      ],
+      "views": 1,
+      "covered": false,
+      "low_evidence": false
+    },
+    {
+      "id": 10,
+      "type": "window",
+      "rooms": [
+        4
+      ],
+      "wall_ids": [
+        "room_4.wall_5"
+      ],
+      "width": {
+        "value": 1.1911,
+        "lo": 1.0722,
+        "hi": 1.31,
+        "sigma": 0.07227,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "height": {
+        "value": 2.136,
+        "lo": 2.1031,
+        "hi": 2.1689,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "sill": {
+        "value": 0.699,
+        "lo": 0.6661,
+        "hi": 0.7319,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "center_xz": [
+        -2.7914,
+        -4.1894
+      ],
+      "views": 1,
+      "covered": true,
+      "low_evidence": false
+    },
+    {
+      "id": 11,
+      "type": "opening",
+      "rooms": [
+        5
+      ],
+      "wall_ids": [
+        "room_5.wall_5"
+      ],
+      "width": {
+        "value": 0.4593,
+        "lo": 0.4288,
+        "hi": 0.4898,
+        "sigma": 0.01854,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "height": {
+        "value": 2.022,
+        "lo": 1.9891,
+        "hi": 2.0549,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "sill": null,
+      "center_xz": [
+        -0.4791,
+        7.8496
+      ],
+      "views": 1,
+      "covered": false,
+      "low_evidence": false
+    },
+    {
+      "id": 12,
+      "type": "window",
+      "rooms": [
+        5
+      ],
+      "wall_ids": [
+        "room_5.wall_5"
+      ],
+      "width": {
+        "value": 0.5531,
+        "lo": 0.4672,
+        "hi": 0.639,
+        "sigma": 0.0522,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "height": {
+        "value": 2.04,
+        "lo": 2.0071,
+        "hi": 2.0729,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "sill": {
+        "value": 1.318,
+        "lo": 1.2851,
+        "hi": 1.3509,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "center_xz": [
+        0.5349,
+        7.9904
+      ],
+      "views": 1,
+      "covered": false,
+      "low_evidence": true
+    },
+    {
+      "id": 13,
+      "type": "window",
+      "rooms": [
+        5
+      ],
+      "wall_ids": [
+        "room_5.wall_7"
+      ],
+      "width": {
+        "value": 0.7209,
+        "lo": 0.635,
+        "hi": 0.8068,
+        "sigma": 0.0522,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "height": {
+        "value": 1.716,
+        "lo": 1.6831,
+        "hi": 1.7489,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "sill": {
+        "value": 0.86,
+        "lo": 0.8271,
+        "hi": 0.8929,
+        "sigma": 0.02,
+        "unit": "m",
+        "confidence": 0.9,
+        "bound": "two_sided",
+        "calibrated": false
+      },
+      "center_xz": [
+        0.1793,
+        4.9165
+      ],
+      "views": 1,
+      "covered": false,
+      "low_evidence": true
+    }
+  ],
+  "damage": [],
+  "flags": [],
+  "scope": []
+}

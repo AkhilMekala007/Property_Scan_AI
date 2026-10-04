@@ -15,12 +15,18 @@ Devices used to build the benchmark: **iPhone 17 Pro** (LiDAR, video, photos) an
 
 Targets are the brief's gates. **Measured** columns are filled from the benchmark (`scan bench`) and are the only numbers we claim.
 
-| Quantity | Tier | Gate (brief) | Current interval (uncalibrated budget) | Measured error on benchmark |
+| Quantity | Tier | Gate (brief) | 90 % interval (calibrated) | Measured on the 3BHK benchmark (tape) |
 |---|---|---|---|---|
-| Wall length | LiDAR | ≤ 1 cm or 0.5 % (repeatability) | ±(1 cm + 0.3 %) fit + budget | *pending benchmark* |
-| Ceiling height | LiDAR | ≤ 1.5 cm; spread ≤ 1 cm | ±1.7 cm | *pending* (repeat spread on sample: 0.6 cm) |
-| Opening width | LiDAR | ≤ 2 cm on ≥ 85 % | ±2.5 cm | *pending* |
-| Wall length | Video | ±3 % | ±(3 cm + 1.5 %) | *pending* |
-| Wall length / footprint | Photo | ±8 % | ±(6 cm + 4 %) | *pending* |
+| Wall length | LiDAR (17 Pro) | ≤ 1 cm or 0.5 % (stand-in) | about ±3–9 cm | median 0.5 %; 4/7 in gate; worst +15.6 cm (wardrobe front) |
+| Ceiling height | LiDAR | ≤ 1.5 cm | about ±1.7 cm | median 0.4 %; 3/4 in gate (hall −1.8 cm) |
+| Opening width | LiDAR | ≤ 2 cm on ≥ 85 % | ±2.5 cm | not scored (no opening ground truth) |
+| Wall length | Video (15) | ±3 % | wide, uncalibrated | fails: 0/10 matched (best capture: Room_1 −9 %) |
+| Wall length | Photo (15, 1×, landscape) | ±8 % | about ±0.3 m | median 0.9 %; 7/7 in gate |
+| Ceiling height | Photo | — | about ±0.3–0.5 m | median 3.1 %; 3/4 |
+| Whole-property stitch | Photo | joined, no overlaps, ±8 % footprint | — | fails: rooms measured but unconnected |
+| Repeatability | Photo | ≤ 1 cm or 0.5 % | — | fails: scale varies 8–15 % between captures |
+
+Capture conditions that measurably hurt the camera tiers (protocol forbids them): 0.5× ultra-wide lens
+(up to 11 % small), portrait orientation (scale unstable), close-ups along walls (too little floor).
 
 Known limits that widen intervals or remove measurements (reported in `result.json`, never hidden): ceiling not filmed (`ceiling_height: null`), walls not observed (`observed: false`), door heads not filmed (lower bound only), curtains over windows (`covered`), low light and fast motion (QC warnings, lower quality score).

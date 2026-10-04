@@ -15,5 +15,17 @@ pydantic==2.13.5  # C13 output contract
 # Geometry (C5 drift correction: ICP + pose graph)
 open3d==0.20.0
 
+# Video / photo tiers: structure from motion, iPhone HEIC photos
+pycolmap==4.2.1
+pillow-heif==1.8.0
+
+# Video / photo tiers: Depth Anything 3 (installed separately, pinned commit -- see README) needs these
+torchvision==0.29.1
+einops==0.8.2
+omegaconf==2.3.1
+imageio==2.38.0
+addict==2.4.0
+evo==1.37.1
+
 # Dev / tests
 pytest==9.1.1

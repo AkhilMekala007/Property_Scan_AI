@@ -31,7 +31,7 @@ class PipelineResult:
     scope: list = field(default_factory=list)
 
 
-def run_pipeline(frameset: FrameSet, upto: str = "plan", drift: bool = True) -> PipelineResult:
+def run_pipeline(frameset: FrameSet, upto: str = "plan", drift: bool = True, drift_config=None) -> PipelineResult:
     from scan.drift import DriftReport, correct_drift
     from scan.qc import run_qc
 
@@ -41,7 +41,7 @@ def run_pipeline(frameset: FrameSet, upto: str = "plan", drift: bool = True) -> 
     frames = res.qc.frameset
     if stop >= STAGES.index("drift"):
         if drift:
-            frames, res.drift = correct_drift(frames)
+            frames, res.drift = correct_drift(frames, drift_config)
         else:
             res.drift = DriftReport(False, note="drift correction disabled (--no-drift-fix)")
     if stop >= STAGES.index("semantics"):

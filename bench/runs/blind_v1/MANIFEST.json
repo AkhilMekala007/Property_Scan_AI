@@ -1,0 +1,17 @@
+{
+  "purpose": "Blind run: results produced and committed BEFORE the laser ground truth was shared",
+  "frozen_at_local": "2026-10-03 21:47",
+  "code_commit": "d64f4077022c89e4087b0154fa9048dddc09dca1",
+  "captures": {
+    "lidar_flat": {
+      "device": "iPhone 17 Pro",
+      "app": "Stray Scanner",
+      "command": "scan run data/raw/benchmark/lidar_flat --device \"iPhone 17 Pro\""
+    }
+  },
+  "sha256": {
+    "lidar_flat/plan.png": "fdf0dd141748dd978f7211609ad00d5d7f050fe76e659fa32cad85bdb134bc27",
+    "lidar_flat/qc_report.md": "983e9a992382bb7fcef64e7bcc624a1ddac06ce4976d6d37d358ef03fe463e58",
+    "lidar_flat/result.json": "357416ff22b16ec1a162acdec81552a859ee1b3327f780f0599e2baf8594f1fe"
+  }
+}

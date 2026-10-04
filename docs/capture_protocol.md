@@ -16,17 +16,17 @@ Follow these steps exactly. They work for any iPhone 15 or newer; the LiDAR scan
 |---|---|---|
 | A Pro iPhone (has LiDAR) | **LiDAR scan** (most accurate) | **Stray Scanner** (free, App Store) |
 | Any iPhone 15 or newer | **Video walkthrough** | Built-in **Camera**, Video mode |
-| Any iPhone 15 or newer | **Photos**, 2–8 per room | Built-in **Camera**, Photo mode |
+| Any iPhone 15 or newer | **Photos**, 6–8 per room | Built-in **Camera**, Photo mode |
 
 ## How to walk (LiDAR scan and video)
 
 1. Start recording **just inside the entrance**. Hold the phone at **chest height**, screen facing you.
-2. Walk **slowly** — about **one step per second** — along the walls of each room. Keep **1–2 m** from the wall you are filming.
+2. Walk **slowly** — about **one step per second** — **through the middle of each room**, not along the walls: stay **2 m or more** from the wall you are filming. **Video: 1× lens, landscape (phone sideways; a portrait video gave a 2.7× scale spread between segments)**, and tilt the phone slightly down so the **line where the floor meets the wall stays in the lower third** of the picture.
 3. In **every room**: film all walls, **tilt the phone up to the ceiling for 5 seconds**, then **down to the floor for 3 seconds**.
 4. **Turn slowly** in corners (about 5 seconds for a quarter turn). Never spin quickly.
 5. **Walk through every doorway** (don't just look through it), pausing 2 seconds in the doorway so both sides of the door are seen.
 6. Finish **back where you started**, filming the first room again for a few seconds.
-7. **Avoid:** standing very close to mirrors or glass, covering the camera, pointing at bright windows for long, running.
+7. **Avoid:** people in the picture, standing very close to walls, mirrors or glass, covering the camera, pointing at bright windows for long, running.
 
 Time: about **1 minute per room**. A 3BHK takes 5–8 minutes.
 
@@ -34,25 +34,11 @@ Time: about **1 minute per room**. A 3BHK takes 5–8 minutes.
 
 ## How to take photos (photo tier)
 
-For each room, create the photos so that **every wall appears in at least two photos**:
+For each room, **6–8 photos** (never more than 8), **landscape (phone sideways — portrait photos measured up to 30 % wrong)**, phone at chest height, **1× lens** (the normal camera, not 0.5×):
 
-1. Stand in **one corner**, hold the phone in **landscape**, and take one photo facing into the room. Include the **floor-wall and ceiling-wall lines**.
-2. Repeat from the **opposite corner**, then from the **doorway** (include the open door).
-3. Add photos until every wall is covered; **2–8 photos per room**.
-4. Before the next room, **take one photo of the door that leads to it** from both sides.
+1. **Shoot across the room, from its edges.** Stand in a **corner** (back to the walls) and photograph the opposite side of the room. Every photo must show the **floor along the far wall** and the **ceiling line** — if you see only wall, step back.
+2. **Positions:** each of the **four corners** and the **doorway**. From each spot take 1–2 photos (turn about 45° between them) so neighbouring photos overlap.
+3. **The room's door, square-on from inside the room**, landscape, 2–3 m back, the whole frame from floor to above its top. In the hall, do the same for each doorway from the hall side (in the hall's folder). Rooms are joined on the plan by matching a door seen from both sides.
+4. **One room per folder, and stay in it.** Don't photograph through an open doorway into the next space.
+5. Avoid people in frame, mirrors face-on, and photos aimed only at a window.
 
-## Hand the files over
-
-**LiDAR (Stray Scanner):** connect the iPhone to the laptop with a USB cable → open the **Apple Devices** app (Windows) or Finder (Mac) → *Files* → **Stray Scanner** → drag the scan folder out. *Fallback:* in the app, open the scan → share → save to Google Drive → download.
-
-**Video:** AirDrop / USB / Google Drive — copy the **one** video file into an empty folder.
-
-**Photos:** one folder per room, named after the room — `kitchen/`, `bedroom1/`, `hall/` — all inside one folder for the property.
-
-## Run
-
-```bash
-scan run <folder> --device "iPhone 17 Pro"
-```
-
-One command; the tier is detected from the files. Results: `outputs/<capture>/result.json` and `plan.png`. Total time on the reference laptop: 2–4 minutes for a LiDAR scan.

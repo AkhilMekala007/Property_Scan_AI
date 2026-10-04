@@ -35,3 +35,129 @@ The real failing number will be measured on two captures of the same benchmark r
 ## Regenerability
 
 The "before" state will be tagged (`fix-loop-before`) once the benchmark runs; before and after are each regenerated with one command from raw inputs.
+
+---
+
+# Candidate B — video tier, wall lengths (±3 % gate)
+
+Recorded **2026-10-04, before the "after" run finished and before ground truth was available**. Which candidate (A: repeatability, B: video walls) is the worst gate is decided by the benchmark; this section fixes the prediction in advance so it cannot be fitted to the result.
+
+## Before (commit `6ec0cd4`)
+
+DA3-BASE poses in 7 chunks of 32 keyframes, 8 shared frames between consecutive chunks, chunks joined from the shared frames only (orientation → rotation, shared depth → scale, centres → translation).
+
+Proxy numbers against the LiDAR run of the same flat (`bench/runs/blind_v1`, 5 rooms, 78.8 m² net):
+
+| | Video before | LiDAR |
+|---|---|---|
+| Rooms | 9 (7 overlapping pairs) | 5 |
+| Net area | 50.9 m² | 78.8 m² |
+| Best bedroom | 3.70 × 3.60 m | 3.72–3.80 × 3.02 m |
+| Ceilings | 2.83–3.19 m | 2.90–2.94 m |
+
+## Root cause
+
+The 168 s walkthrough is reconstructed as a **chain** of chunks; each join uses only the 8 frames the chunks share. Errors accumulate along the chain and nothing pulls the chain back when the camera returns to a room, so one wall seen from two chunks lands in two places, which splits rooms (C6) and creates overlaps.
+
+Evidence: the metric scale measured independently in each chunk (DA3METRIC-LARGE) varies 2.44–3.21 m per joint unit along the chain (±13 %); a first version that took the chunk scale from camera centres went negative by chunk 4 (centres move too little across 8 frames).
+
+## Fix (commit `2fea3a4`)
+
+1. Each new chunk is aligned by point-to-plane ICP to the cloud of **everything already placed** (all overlapping surfaces, and earlier rooms when the camera returns), kept only when overlap fitness improves.
+2. Chunk overlap 8 → 16 frames (10 chunks).
+
+On the old 8-frame chunks, step 1 alone improved 5 of 6 joins (fitness e.g. 0.07 → 0.25) and gave 5 rooms / 1 overlap, but only 35.9 m² net.
+
+## Prediction (written before the result)
+
+- Room count 5 ± 1, at most 1 overlapping pair.
+- Net area within 15 % of the LiDAR 78.8 m² (67–91 m²).
+- Bedroom walls within 5 % of LiDAR for the matched rooms; still likely **outside** the ±3 % gate — the remaining error is depth-scale drift within a chunk, which this fix does not address.
+
+## Regenerate
+
+`git checkout 6ec0cd4` (before) / `2fea3a4` (after), then `scan run data/raw/benchmark/video_flat --device "iPhone 15"`. Before uses the cached chunks in `da3_160_32_8_336`; after in `da3_160_32_16_336`.
+
+## Outcome of attempt 1 (recorded 2026-10-04 04:07 IST, after the run)
+
+**Prediction falsified.** After (commit `2fea3a4`, 16-frame overlap + ICP against all placed chunks):
+3 rooms, 1 overlapping pair, **31.6 m²** net (predicted 5 ± 1 rooms, 67–91 m²). ICP improved every
+accepted join (overlap fitness e.g. 0.14 → 0.31), but the per-chunk metric scale still varies by up to
+33 % along the chain. Fusing all chunks into one model smears walls that were seen at different
+scales; C6 then drops floor it cannot bound and merges what remains.
+
+Revised root cause: not the joins alone but **fusing depth from chunks whose scales disagree**. Within
+one chunk DA3 is self-consistent and the metric scale is measured for that chunk.
+
+## Attempt 2 — measure each chunk on its own (prediction written before the run)
+
+**Fix:** every chunk becomes its own fragment with its own metric scale; each runs the room pipeline
+separately (no cross-chunk fusion). Rooms are placed with the chained poses (for layout only); where two
+chunks saw the same room, the copy with more observed walls is kept.
+
+**Prediction:** at least 4 of the 5 rooms recovered as separate rooms; matched bedroom walls within
+±8 % of the tape (median ≤ 5 %), still mostly outside the ±3 % video gate; net area 55–90 m².
+
+## Outcome of attempt 2 (recorded after the run)
+
+**Prediction largely falsified.** 7 rooms, **9 overlapping pairs**, 57.9 m² net (area inside the predicted
+55–90 m², but rooms not recovered): each 32-frame chunk (~30 s of video) sees only part of a room, so
+per-chunk rooms are partial (e.g. 1.9 × 4.5 m, 2.5 × 2.0 m) and the duplicate filter cannot merge
+partial views of the same room. 7 duplicates removed, 1 chunk gave no room.
+
+| Variant | Rooms | Overlaps | Net m² |
+|---|---|---|---|
+| Before: 8-frame chain, fused | 9 | 7 | 50.9 |
+| Attempt 1: 16-frame chain + ICP, fused | 3 | 1 | 31.6 |
+| Attempt 2: per-chunk, placed by chain | 7 | 9 | 57.9 |
+| LiDAR reference | 5 | 0 | 78.8 (tape: hall 36 m²) |
+
+Conclusion so far: the video tier is limited by **metric-scale consistency of monocular depth across
+the walkthrough** (±13–33 % between chunks); neither tighter joins (attempt 1) nor avoiding cross-chunk
+fusion (attempt 2) removes it. A fix needs either a scale-consistent multi-view model over the whole
+video (DA3 on all frames at once: memory-bound on this 8 GB CPU laptop) or a sensor scale reference.
+
+## Attempt 3 — the whole video in one DA3 pass (prediction written before the run)
+
+**Fix:** no chunks: DA3-BASE on 48–80 keyframes spread over the whole walkthrough in one pass (lower
+resolution to fit 8 GB), so every frame shares one scale; metric scale from DA3METRIC on 4 frames.
+
+**Prediction:** 4–6 rooms, ≤ 2 overlapping pairs, net 60–90 m²; matched bedroom walls within ±8 % of
+the tape (median ≤ 5 %); ceilings within ±5 %. Risk: sparse frames (one per 2–3 s) may give rooms with
+few observed walls.
+
+## Outcome of attempt 3 (recorded after the run)
+
+**Prediction falsified.** One DA3 pass over 80 keyframes (596 s end to end — fast): **1 room, 3.8 m²**.
+Diagnosis: the camera path is 16 DA3 units long (≈ 63 m at the measured scale) but spans only
+0.6 × 0.9 units (≈ 2.3 × 3.4 m): with one frame every ~2 s and similar white rooms, DA3 superimposed
+different rooms onto one place. Sparse whole-flat sequences break the multi-view model's
+correspondence; dense chunks (attempts 1–2) keep correspondence but lose scale consistency.
+
+## Decision (time box reached)
+
+Video tier ships with attempt 2 (per-chunk measurement, 16-frame overlap): the most complete plan
+(57.9 m²) and every room measured at a self-consistent scale. Documented as **failing the ±3 % video
+gate**; the structural fix is a scale reference shared across the walkthrough (e.g. the phone's own
+IMU/ARKit odometry, which a plain video file does not record) or a multi-view model with long-range
+memory. The loop's value is the diagnosis: three measured attempts, each prediction recorded before
+its result.
+
+## Approach 2 — video as per-room photo sets (shipped default; prediction written before its run on `video_flat`)
+
+**Fix:** split the walkthrough into rooms by shared views (verified SIFT matches between frames; boundaries
+where frames before and after share few matches; revisits merged), then reconstruct each room like a photo
+folder — DA3 on ~8 frames spread over the room's whole time on screen, metric scale from 4 of them.
+Measured on later captures before this prediction: `video_v2` (close to walls) 5 small rooms, no ceilings;
+`video_v3` (portrait, room centres) 4 rooms of which 3 were hall pieces, Room_1 −9 % / −39 %, ceilings −18 %.
+
+**Prediction for `video_flat` (the original 168 s clip, filmed close to walls, fast):** 3–6 rooms, mostly
+partial; no bedroom dimension within ±8 %; the ±3 % video wall gate **stays failing** (0 of 10 matched).
+Runtime drops from ~45 min (chunk mode) to ~15–20 min.
+
+## Outcome of approach 2 on `video_flat` (recorded after the run)
+
+**Prediction largely held** (5 rooms, partial; gate still failing), runtime prediction wrong (33 min, not
+15-20). Split into 10 segments, 5 gave rooms: 9.7, 8.1, 3.5, 2.5, 10.2 m²; ceilings 2.32-2.45 m where seen
+(tape 2.89-2.94: ~18 % low, the same bias as on `video_v3`). Before vs after on the same clip: overlapping
+pairs 7 → 0, net area 50.9 → 34.1 m², rooms matchable to tape 0 → 0. The gate did not move.

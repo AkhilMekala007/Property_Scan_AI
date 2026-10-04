@@ -1,0 +1,61 @@
+# Ground truth for the 3BHK benchmark flat, measured by the owner with a measuring tape. Metres / square metres.
+# Given by the property owner on 2026-10-04 (03:45 IST), AFTER the blind LiDAR run was frozen
+# (bench/runs/blind_v1, commit 6a068de).
+#
+# Rooms are given as overall dimensions (length x width), not per wall; scan/bench.py compares
+# each dimension with the longest wall on that axis (rule in _dimension_rows).
+# Added at 04:05 IST: hall ceiling corrected 2.49 -> 2.50 by the owner; Room_3 ceiling, kitchen width
+# and hall dimensions given rounded (to 5-10 cm) and listed under `approx`: they are reported, but
+# excluded from gate pass rates and interval coverage (too coarse to judge cm-level gates).
+# Not measured: door widths.
+
+property: flat_3bhk
+instrument: tape
+instrument_model: "measuring tape (read to the nearest mm; rounded values listed under approx)"
+measured_by: owner
+date: "2026-10-04"
+
+rooms:
+  room_1: {dims: [3.35, 3.01], ceiling: 2.89}
+  room_2: {dims: [3.75, 3.01], ceiling: 2.94}
+  room_3: {dims: [3.89, 3.03], ceiling: 3.0, approx: [ceiling]}
+  kitchen: {dims: [3.00, 2.5], ceiling: 2.90, approx: [dim1]}
+  hall: {area: 36.0, dims: [8.5, 3.5], ceiling: 2.50, approx: [dim0, dim1]}
+
+# Staged damage (2026-10-04 evening), photographed in photos_damage/Room_1. One class only: a coffee
+# stain with drips staged as a water stain. Size by tape; height above the floor approximate for now.
+damage:
+  - {room: room_1, class: water_stain, width: 0.24, height: 0.18, bottom_above_floor: 1.0, approx: [bottom_above_floor], captures: [photos_damage]}
+
+# Ground-truth room -> pipeline room, per capture.
+#   photos_flat: by folder name (no judgement).
+#   lidar_flat: read from the frozen blind plan (bench/runs/blind_v1/lidar_flat/plan.png) by room position.
+mapping:
+  lidar_flat: {room_1: room_4, room_2: room_2, room_3: room_3, kitchen: room_5, hall: room_1}
+  photos_flat: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
+  photos_v2: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
+  photos_v3: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
+  photos_v4: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
+  photos_v5: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
+  photos_v6: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
+  photos_repeat: {room_3: room_3}
+  photos_damage: {room_1: room_1}
+  video_v2: {}
+  video_v3: {room_1: room_4}   # rooms_mode run; identified by content (bed + curtained window = Room_1, segment 3); other rooms produced no room
+  video_flat: {}   # empty on purpose: the video tier's rooms are partial (per-chunk views, 9 overlaps) and none
+                   # can be identified with a tape-measured room without judgement, so every item counts as missed
+
+# Polycam's numbers for the head-to-head (Part 3), from its floor-plan CSV export
+# (data/raw/benchmark/polycam, not published: contains the address). Polycam reports
+# dimensions and ceilings rounded to 0.1 m and areas to 0.1 m2. Room correspondence given by the
+# owner: Bedroom 1 = room_2, Bedroom 2 = room_3, Bedroom 3 = room_1, Kitchen 2 = kitchen,
+# Kitchen 1 + Other 1 = hall.
+competitor:
+  app: Polycam
+  version: "scan of 2026-10-03, floor-plan export"
+  rooms:
+    room_1: {dims: [3.4, 3.1], ceiling: 3.0}
+    room_2: {dims: [3.9, 3.7], ceiling: 3.0}
+    room_3: {dims: [4.1, 3.0], ceiling: 3.0}
+    kitchen: {dims: [3.0, 2.4], ceiling: 3.0}
+    hall: {area: 34.6, ceiling: 2.6}

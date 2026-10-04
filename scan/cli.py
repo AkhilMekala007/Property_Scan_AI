@@ -393,7 +393,9 @@ def cmd_drift(args: argparse.Namespace) -> int:
         return 2
     started = time.perf_counter()
     off = run_pipeline(fs, drift=False)
-    on = run_pipeline(fs, drift=True)
+    from scan.drift import DriftConfig
+
+    on = run_pipeline(fs, drift=True, drift_config=DriftConfig(force_heading=True))  # ablation: correction forced on
     m_off, m_on = consistency_metrics(off), consistency_metrics(on)
     out_dir = Path(args.out) / fs.meta.capture_id
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -498,17 +500,50 @@ def cmd_run(args: argparse.Namespace) -> int:
     from scan.qc import write_reports
     from scan.stitch.render import render_floor_plan
 
+    from scan.core.types import Tier
+    from scan.ingest.detect import detect_capture
+
     started = time.perf_counter()
     try:
-        fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+        detected = detect_capture(args.capture)
+        if detected.tier is Tier.LIDAR:
+            fs = load_capture(args.capture, cache_root=args.cache, config=AdapterConfig(device_model=args.device))
+            res = run_pipeline(fs, upto="damage", drift=not args.no_drift_fix)
+        else:  # video / photos: separate reconstructions, placed through doors (scan/fragments.py)
+            from scan import fragments as F
+
+            if detected.tier is Tier.VIDEO:
+                mv = F._multiview()
+                if mv is not None:  # video -> rooms -> photo-style fragments (docs/LLD/13, approach 2)
+                    meta, parts = F.video_room_fragments(mv, detected.video_path, detected.capture_id,
+                                                         Path(args.cache), args.device)
+                else:
+                    meta, parts = F.video_fragments(detected.video_path, detected.capture_id, Path(args.cache),
+                                                    args.device)
+            else:
+                meta, parts = F.photo_fragments(detected.room_dirs, detected.capture_id, Path(args.cache),
+                                                args.device)
+            meta.warnings[:0] = detected.warnings
+            res = F.run_capture(meta, parts)
+            fs = res.frameset
     except (CaptureFormatError, NotImplementedError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    res = run_pipeline(fs, upto="damage", drift=not args.no_drift_fix)
     result = build_result(res, time.perf_counter() - started)
     out_dir = Path(args.out) / fs.meta.capture_id
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "result.json").write_text(to_json(result), encoding="utf-8")
+    payload = to_json(result)
+    factors_path = Path(args.calibration)
+    if factors_path.exists():  # C12: benchmark-fitted interval factors
+        import json as _json
+
+        from scan.calibrate import apply, load_factors
+        from scan.contract.schema import Result
+
+        data = apply(_json.loads(payload), load_factors(factors_path))
+        payload = Result.model_validate(data).model_dump_json(indent=2) + chr(10)
+        result = Result.model_validate(data)
+    (out_dir / "result.json").write_text(payload, encoding="utf-8")
     write_reports(res.qc.report, out_dir)
     render_floor_plan(res.plan, res.layout.floor_map.frame, out_dir / "plan.png",
                       damage=res.damage.regions if res.damage else None)
@@ -528,7 +563,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     errors = [i for i in c.issues if i.severity == "error"]
     for i in errors:
         print(f"  [x] {i.code}: {i.message}")
-    print(f"json   {out_dir / 'result.json'}  (schema {result.schema_version}, intervals uncalibrated)")
+    print(f"json   {out_dir / 'result.json'}  (schema {result.schema_version}, intervals "
+          f"{'calibrated (C12)' if result.processing.calibrated else 'uncalibrated'})")
     print(f"plan   {out_dir / 'plan.png'}")
     return 1 if errors or p.overlaps else 0
 
@@ -542,6 +578,54 @@ def cmd_schema(args: argparse.Namespace) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(json_schema(), indent=2) + chr(10), encoding="utf-8")
     print(f"schema written to {out}")
+    return 0
+
+
+def cmd_calibrate(args: argparse.Namespace) -> int:
+    """C12: fit interval factors on benchmark reports; optionally apply them to existing results."""
+    import json
+
+    from scan.calibrate import apply, fit, load_factors, write_factors
+
+    sources = [Path(p) for p in args.reports]
+    factors = fit(sources)
+    path = write_factors(factors, Path(args.out), sources)
+    print(f"CALIBRATE  {len(factors)} factor(s) -> {path}")
+    for f in factors:
+        print(f"  {f.tier:6s} {f.kind:8s} k={f.k:.2f}  n={f.n}  coverage {f.coverage_before:.0%} -> {f.coverage_after:.0%}"
+              f"  (leave-one-out {f.coverage_loo:.0%})")
+    for res_path in args.apply or []:
+        res_path = Path(res_path)
+        data = apply(json.loads(res_path.read_text(encoding="utf-8")), load_factors(path))
+        out = res_path.with_name(res_path.stem + ".calibrated.json")
+        out.write_text(json.dumps(data, indent=2) + chr(10), encoding="utf-8")
+        print(f"  applied -> {out}")
+    return 0
+
+
+def cmd_bench(args: argparse.Namespace) -> int:
+    """Accuracy vs laser ground truth (and the consumer app) for one capture's result.json."""
+    from scan.bench import benchmark, to_json, to_markdown
+
+    rep = benchmark(Path(args.result), Path(args.truth), args.capture)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / f"{args.capture}.md").write_text(to_markdown(rep), encoding="utf-8")
+    (out / f"{args.capture}.json").write_text(to_json(rep), encoding="utf-8")
+    s = rep.summary
+    print(f"BENCH  {rep.capture}  ({rep.tier} tier)   rows {len(rep.rows)}, missed {s['missed']}")
+    for kind in ("wall", "ceiling", "opening"):
+        k = s[kind]
+        if k["total"]:
+            med = s["median_abs_error_m"].get(kind)
+            print(f"  {kind:8s} gate passed {k['passed']}/{k['total']}  "
+                  f"median |error| {'n/a (nothing matched)' if med is None else f'{med * 100:.1f} cm'}")
+    print(f"  interval coverage {s['interval_coverage']}  (target 0.90)")
+    if "head_to_head" in s:
+        h = s["head_to_head"]
+        print(f"  head-to-head beat/tie {h['beat_or_tie']}/{h['total']} = {h['rate']:.0%}  "
+              f"({'PASS' if h['pass'] else 'FAIL'}, need >= 70%)")
+    print(f"report  {out / (args.capture + '.md')}")
     return 0
 
 
@@ -667,11 +751,26 @@ def build_parser() -> argparse.ArgumentParser:
     rn.add_argument("--no-drift-fix", action="store_true")
     rn.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
     rn.add_argument("--out", default="outputs", help="output folder")
+    rn.add_argument("--calibration", default="calibration/factors.json",
+                    help="C12 interval factors (applied when the file exists)")
     rn.set_defaults(func=cmd_run)
 
     sc = sub.add_parser("schema", help="write the published JSON schema of result.json")
     sc.add_argument("--out", default="schema/result.schema.json")
     sc.set_defaults(func=cmd_schema)
+
+    bn = sub.add_parser("bench", help="accuracy of a result.json against laser ground truth")
+    bn.add_argument("result", help="path to result.json")
+    bn.add_argument("truth", help="ground-truth YAML (template: bench/ground_truth/TEMPLATE.yaml)")
+    bn.add_argument("--capture", required=True, help="capture name used in the YAML mapping, e.g. lidar_flat")
+    bn.add_argument("--out", default="bench/reports")
+    bn.set_defaults(func=cmd_bench)
+
+    cb = sub.add_parser("calibrate", help="C12: fit interval factors on benchmark reports")
+    cb.add_argument("reports", nargs="+", help="benchmark report JSON files (scan bench output)")
+    cb.add_argument("--out", default="calibration/factors.json")
+    cb.add_argument("--apply", nargs="*", help="result.json files to re-interval (writes *.calibrated.json)")
+    cb.set_defaults(func=cmd_calibrate)
     return parser
 
 
