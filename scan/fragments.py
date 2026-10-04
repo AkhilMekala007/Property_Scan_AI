@@ -45,6 +45,7 @@ class Fragment:
     frameset: FrameSet
     note: str = ""
     layout_xz: dict[int, np.ndarray] | None = None  # frame index -> camera xz in a common frame (layout only)
+    one_room: bool = False  # the fragment shows one room (photo folder, video room segment): keep its largest
 
 
 # ---------- shared ----------
@@ -320,6 +321,10 @@ def video_fragments_da3(mv, video: Path, capture_id: str, cache_root: Path, devi
                        n_frames_raw=info.n_frames, duration_s=info.n_frames / info.fps)
     if device is None:
         meta.warn("video files do not reliably record the iPhone model; pass --device")
+    vdepth = (384, 216) if info.width >= info.height else (216, 384)  # depth grid follows the clip's orientation
+    if info.width < info.height:
+        meta.warn("video recorded in portrait; the protocol asks for landscape (portrait photos measured up to "
+                  "30 % wrong), so expect a less reliable metric scale")
     cache = cache_root / capture_id / "video"
     rgb_dir = cache / "rgb"
     manifest = cache / "keyframes.json"
@@ -377,7 +382,7 @@ def video_fragments_da3(mv, video: Path, capture_id: str, cache_root: Path, devi
     notes2: list[str] = []
     frames = _frames_multiview(mv, images, None, [i for i, _ in keys], [t for _, t in keys],
                                (info.width, info.height), cfg, notes2, poses=items, chunk_scale=frame_scale,
-                               depth_size=(384, 216), ratios=[scale])
+                               depth_size=vdepth, ratios=[scale])
     frames = _gravity_align(frames)
     fmeta = replace(meta, warnings=[])
     if not per_chunk:
@@ -391,7 +396,7 @@ def video_fragments_da3(mv, video: Path, capture_id: str, cache_root: Path, devi
         n: list[str] = []
         fr = _frames_multiview(mv, [images[i] for i in ids], None, [keys[i][0] for i in ids],
                                [keys[i][1] for i in ids], (info.width, info.height), cfg, n, result=res,
-                               depth_size=(384, 216), ratios=[ratio])
+                               depth_size=vdepth, ratios=[ratio])
         fr = _gravity_align(fr)
         out.append(Fragment(f"chunk_{c}", _frameset(replace(meta, warnings=[]), fr, cache_root / capture_id),
                             "; ".join(n), layout_xz={f.index: layout[f.index] for f in fr}))
@@ -1067,8 +1072,7 @@ def drop_duplicates(runs: list[FragmentRun], min_share: float = 0.5) -> list[str
 
 
 def run_capture(meta: CaptureMeta, fragments: list[Fragment], damage: bool = True):
-    keep_largest = meta.tier is Tier.PHOTO
-    runs = [r for r in (run_fragment(f, keep_largest) for f in fragments) if r is not None]
+    runs = [r for r in (run_fragment(f, meta.tier is Tier.PHOTO or f.one_room) for f in fragments) if r is not None]
     dropped = [f.name for f in fragments if not any(r.fragment is f for r in runs)]
     if not runs:
         raise RuntimeError("no fragment produced a room")
@@ -1084,3 +1088,132 @@ def run_capture(meta: CaptureMeta, fragments: list[Fragment], damage: bool = Tru
             if f.name in dropped:
                 meta.warn(f"{f.name}: {f.note.lstrip('; ')}")
     return assemble(meta, runs, log, damage)
+
+
+# ---------- video as per-room photo sets (approach 2) ----------
+
+def _frame_links(paths: list[Path], max_side: int = 480, n_feat: int = 800) -> np.ndarray:
+    """Verified feature matches between every pair of frames (symmetric matrix of inlier counts)."""
+    sift = cv2.SIFT_create(n_feat)
+    feats = []
+    for p in paths:
+        g = cv2.imread(str(p), cv2.IMREAD_GRAYSCALE)
+        s = max_side / max(g.shape)
+        g = cv2.resize(g, None, fx=s, fy=s, interpolation=cv2.INTER_AREA)
+        kp, des = sift.detectAndCompute(g, None)
+        feats.append((np.float32([k.pt for k in kp]), des))
+    n = len(paths)
+    links = np.zeros((n, n))
+    matcher = cv2.BFMatcher(cv2.NORM_L2)
+    for i in range(n):
+        for j in range(i + 1, n):
+            (pi, di), (pj, dj) = feats[i], feats[j]
+            if di is None or dj is None or len(di) < 8 or len(dj) < 8:
+                continue
+            m = [a for a, b in matcher.knnMatch(di, dj, k=2) if a.distance < 0.75 * b.distance]
+            if len(m) < 12:
+                continue
+            _, inl = cv2.findFundamentalMat(pi[[x.queryIdx for x in m]], pj[[x.trainIdx for x in m]],
+                                            cv2.FM_RANSAC, 2.0, 0.99)
+            links[i, j] = links[j, i] = 0 if inl is None else int(inl.sum())
+    return links
+
+
+def split_rooms(links: np.ndarray, window: int = 6, min_len: int = 6, merge_share: float = 0.25) -> list[list[int]]:
+    """Frames -> rooms. Boundaries where frames before and after share few matches (passing a doorway);
+    segments that share many matches (the same room revisited) are merged."""
+    n = len(links)
+    S = np.minimum(links / 50.0, 1.0)  # 50+ verified matches = clearly the same place
+    nov = np.zeros(n)
+    for t in range(window, n - window):
+        a, b = slice(t - window, t), slice(t, t + window)
+        within = (S[a, a].mean() + S[b, b].mean()) / 2
+        nov[t] = within - S[a, b].mean()
+    cuts = []
+    for t in np.argsort(-nov):
+        if nov[t] < 0.15:
+            break
+        if all(abs(t - c) >= min_len for c in cuts):
+            cuts.append(int(t))
+    bounds = [0] + sorted(cuts) + [n]
+    segs = [list(range(bounds[k], bounds[k + 1])) for k in range(len(bounds) - 1)]
+    # merge revisits: two segments whose frames match each other nearly as well as within themselves
+    groups = [[k] for k in range(len(segs))]
+    def frames(g):
+        return [f for k in g for f in segs[k]]
+    merged = True
+    while merged:
+        merged = False
+        for x in range(len(groups)):
+            for y in range(x + 1, len(groups)):
+                fx, fy = frames(groups[x]), frames(groups[y])
+                cross = S[np.ix_(fx, fy)].mean()
+                within = min(S[np.ix_(fx, fx)].mean(), S[np.ix_(fy, fy)].mean())
+                if within > 0 and cross >= merge_share * within and cross > 0.08:
+                    groups[x] += groups.pop(y)
+                    merged = True
+                    break
+            if merged:
+                break
+    rooms = [sorted(frames(g)) for g in groups]
+    return [r for r in rooms if len(r) >= min_len]
+
+
+def video_room_fragments(mv, video: Path, capture_id: str, cache_root: Path, device: str | None,
+                         cfg: VideoConfig | None = None, n_link: int = 120, per_room: int = 8
+                         ) -> tuple[CaptureMeta, list[Fragment]]:
+    """Video -> rooms -> one photo-style fragment per room (DA3 on ~8 frames spread over the room's
+    whole time on screen, metric scale on 4 of them): the method that measures photo rooms within 1-3 %."""
+    cfg = cfg or VideoConfig()
+    info = probe(video)
+    meta = CaptureMeta(capture_id, Tier.VIDEO, "video_file", video.parent, device_model=device,
+                       n_frames_raw=info.n_frames, duration_s=info.n_frames / info.fps)
+    if device is None:
+        meta.warn("video files do not reliably record the iPhone model; pass --device")
+    cache = cache_root / capture_id / "video"
+    rgb_dir = cache / "rgb"
+    manifest = cache / "keyframes.json"
+    sig = {"video": video.name, "size": video.stat().st_size, "target": cfg.target_keyframes}
+    if manifest.exists() and json.loads(manifest.read_text())["sig"] == sig:
+        keys = [tuple(k) for k in json.loads(manifest.read_text())["keys"]]
+    else:
+        keys = select_keyframes(video, cfg.target_keyframes, rgb_dir)
+        manifest.write_text(json.dumps({"sig": sig, "keys": keys}))
+    picks = np.unique(np.linspace(0, len(keys) - 1, min(n_link, len(keys))).round().astype(int))
+    keys = [keys[k] for k in picks]
+    paths = [rgb_dir / f"{i:06d}.jpg" for i, _ in keys]
+    links_path = cache / f"links_{len(keys)}.npy"
+    if links_path.exists():
+        links = np.load(links_path)
+    else:
+        links = _frame_links(paths)
+        np.save(links_path, links)
+    rooms = split_rooms(links)
+    meta.warn(f"video split into {len(rooms)} room(s) by shared views "
+              f"({', '.join(f'{keys[r[0]][1]:.0f}-{keys[r[-1]][1]:.0f}s' for r in rooms)})")
+    out = []
+    for k, r in enumerate(rooms):
+        sel = [r[j] for j in np.unique(np.linspace(0, len(r) - 1, min(per_room, len(r))).round().astype(int))]
+        rdir = cache / "rooms" / f"room_{k}"
+        img_dir = rdir / "images"
+        img_dir.mkdir(parents=True, exist_ok=True)
+        imgs = []
+        for j in sel:
+            dst = img_dir / paths[j].name
+            if not dst.exists():
+                im = cv2.imread(str(paths[j]))
+                s = PHOTO_MAX_SIDE / max(im.shape[:2])
+                cv2.imwrite(str(dst), cv2.resize(im, None, fx=s, fy=s, interpolation=cv2.INTER_AREA),
+                            [cv2.IMWRITE_JPEG_QUALITY, 95])
+            imgs.append(dst)
+        h, w = cv2.imread(str(imgs[0])).shape[:2]
+        result = _cached_infer(mv, imgs, rdir / "da3.npz")
+        ratios = _cached_metric(mv, imgs, result, rdir / "da3_metric_scale.npy")
+        notes: list[str] = []
+        frames = _frames_multiview(mv, imgs, None, [keys[j][0] for j in sel], [keys[j][1] for j in sel],
+                                   (w, h), cfg, notes, room_hint=f"room_{k}", result=result, ratios=ratios)
+        frames = _gravity_align(frames)
+        fmeta = CaptureMeta(capture_id, Tier.VIDEO, "video_file", video.parent, device_model=device)
+        out.append(Fragment(f"room_{k}", FrameSet(meta=fmeta, frames=frames, cache_dir=rdir, trajectory=None),
+                            "; ".join(notes), one_room=True))
+    return meta, out

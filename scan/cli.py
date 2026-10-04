@@ -514,9 +514,9 @@ def cmd_run(args: argparse.Namespace) -> int:
 
             if detected.tier is Tier.VIDEO:
                 mv = F._multiview()
-                if mv is not None:
-                    meta, parts = F.video_fragments_da3(mv, detected.video_path, detected.capture_id,
-                                                        Path(args.cache), args.device)
+                if mv is not None:  # video -> rooms -> photo-style fragments (docs/LLD/13, approach 2)
+                    meta, parts = F.video_room_fragments(mv, detected.video_path, detected.capture_id,
+                                                         Path(args.cache), args.device)
                 else:
                     meta, parts = F.video_fragments(detected.video_path, detected.capture_id, Path(args.cache),
                                                     args.device)
