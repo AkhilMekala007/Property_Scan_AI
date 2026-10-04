@@ -83,3 +83,9 @@ photos show 1.0 m² of floor, so no floor plane is found and no room is built (R
 10.7 m² of 36). The first set — taken from corners and the doorway, across the room, 1× — measured 4
 rooms within 1–3 %. Protocol revision 3: 1× lens, shoot across the room from the corners and the
 doorway, floor along the far wall and ceiling line in every photo.
+
+## Orientation (measured 2026-10-04, fifth photo set)
+
+Portrait 1× photos (Kitchen, Room_1, Room_2): Room_1 scale ~30 % too large (ceiling 3.80 m vs 2.89 m
+tape), Room_2 no room (metric scale factor 3.04 vs 2.28 for the same room in landscape). Every set
+that measured well was landscape. Benchmark photo set frozen at `photos_v4` (all landscape, 1×).
