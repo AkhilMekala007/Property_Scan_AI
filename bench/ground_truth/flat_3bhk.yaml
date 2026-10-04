@@ -32,6 +32,7 @@ mapping:
   photos_v3: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
   photos_v4: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
   photos_v5: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
+  photos_v6: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
   video_v2: {}
   video_flat: {}   # empty on purpose: the video tier's rooms are partial (per-chunk views, 9 overlaps) and none
                    # can be identified with a tape-measured room without judgement, so every item counts as missed

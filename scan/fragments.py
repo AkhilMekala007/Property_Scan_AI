@@ -244,7 +244,8 @@ def _cached_metric(mv, images: list[Path], result, path: Path, n: int = PHOTO_ME
 def _frames_multiview(mv, images: list[Path], metric: list[np.ndarray], indices: list[int], times: list[float],
                       full_size: tuple[int, int], cfg: VideoConfig, notes: list[str], room_hint: str | None = None,
                       result=None, poses=None, chunk_scale=None,
-                      depth_size: tuple[int, int] | None = None, ratios: list[float] | None = None) -> list[Frame]:
+                      depth_size: tuple[int, int] | None = None, ratios: list[float] | None = None,
+                      content_box: list | None = None) -> list[Frame]:
     """Frames from DA3 poses + depth; metric scale from the metric depth model.
 
     Either run DA3 on ``images`` here, or pass ``result`` (one MultiViewResult) or ``poses`` /
@@ -282,6 +283,12 @@ def _frames_multiview(mv, images: list[Path], metric: list[np.ndarray], indices:
         sx, sy = W / d3.shape[1], H / d3.shape[0]
         intr = Intrinsics(K3[0, 0] * sx, K3[1, 1] * sy, (K3[0, 2] + 0.5) * sx - 0.5, (K3[1, 2] + 0.5) * sy - 0.5, W, H)
         depth = cv2.resize(d3 * scale, out_depth, interpolation=cv2.INTER_AREA).astype(np.float32)
+        if content_box and content_box[k] is not None:  # padded photo: no depth outside the real image
+            bx0, by0, bx1, by1 = content_box[k]
+            keep = np.zeros(depth.shape, bool)
+            keep[int(by0 * depth.shape[0]) + 1:int(by1 * depth.shape[0]) - 1,
+                 int(bx0 * depth.shape[1]) + 1:int(bx1 * depth.shape[1]) - 1] = True
+            depth[~keep] = np.nan
         c = cv2.resize(conf, out_depth, interpolation=cv2.INTER_AREA)
         conf8 = _confidence(depth)
         conf8[c < np.percentile(c, 20)] = 0
@@ -501,12 +508,28 @@ def photo_fragments(room_dirs: dict[str, Path], capture_id: str, cache_root: Pat
         cache = cache_root / capture_id / "photo" / room
         img_dir = cache / "images"
         img_dir.mkdir(parents=True, exist_ok=True)
-        names = []
-        for p in paths:
+        # DA3 needs one image shape per set: a photo in the minority orientation is padded (not cropped,
+        # so a door keeps its full height) to the majority shape; its depth is masked outside the photo
+        infos = [photo_info(p) for p in paths]
+        landscape = sum(i.width >= i.height for i in infos) * 2 >= len(infos)
+        names, pads = [], {}
+        for p, inf in zip(paths, infos):
             name = p.stem + ".jpg"
+            rgb = read_photo(p, PHOTO_MAX_SIDE)
+            h0, w0 = rgb.shape[:2]
+            if (w0 >= h0) != landscape:
+                W, H = (PHOTO_MAX_SIDE, PHOTO_MAX_SIDE * 3 // 4) if landscape else (PHOTO_MAX_SIDE * 3 // 4, PHOTO_MAX_SIDE)
+                sc = min(W / w0, H / h0)
+                small = cv2.resize(rgb, (int(w0 * sc), int(h0 * sc)), interpolation=cv2.INTER_AREA)
+                canvas = np.full((H, W, 3), 127, np.uint8)
+                x0, y0 = (W - small.shape[1]) // 2, (H - small.shape[0]) // 2
+                canvas[y0:y0 + small.shape[0], x0:x0 + small.shape[1]] = small
+                rgb = canvas
+                pads[name] = (x0 / W, y0 / H, (x0 + small.shape[1]) / W, (y0 + small.shape[0]) / H)
+                meta.warn(f"{room}: {p.name} is {'portrait' if landscape else 'landscape'} among "
+                          f"{'landscape' if landscape else 'portrait'} photos; padded to match")
             if not (img_dir / name).exists():
-                cv2.imwrite(str(img_dir / name), cv2.cvtColor(read_photo(p, PHOTO_MAX_SIDE), cv2.COLOR_RGB2BGR),
-                            [cv2.IMWRITE_JPEG_QUALITY, 95])
+                cv2.imwrite(str(img_dir / name), cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 95])
             names.append(name)
         h, w = cv2.imread(str(img_dir / names[0])).shape[:2]
         focal = (info.focal_px or 1.2 * max(info.width, info.height)) * w / info.width
@@ -532,7 +555,8 @@ def photo_fragments(room_dirs: dict[str, Path], capture_id: str, cache_root: Pat
             result = _cached_infer(mv, images, cache / "da3.npz")
             ratios = _cached_metric(mv, images, result, cache / "da3_metric_scale.npy")
             frames = _frames_multiview(mv, images, None, [index_of[n] for n in names], [time_of[n] for n in names],
-                                       (w, h), cfg, notes, room_hint=room, result=result, ratios=ratios)
+                                       (w, h), cfg, notes, room_hint=room, result=result, ratios=ratios,
+                                       content_box=[pads.get(n) for n in names])
         else:
             K = Intrinsics(focal, focal, w / 2, h / 2, w, h)
             poses, reg_note = register_photos([img_dir / n for n in names], [depths_all[n] for n in names], K)

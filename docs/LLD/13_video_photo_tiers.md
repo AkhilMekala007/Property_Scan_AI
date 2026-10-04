@@ -89,3 +89,15 @@ doorway, floor along the far wall and ceiling line in every photo.
 Portrait 1× photos (Kitchen, Room_1, Room_2): Room_1 scale ~30 % too large (ceiling 3.80 m vs 2.89 m
 tape), Room_2 no room (metric scale factor 3.04 vs 2.28 for the same room in landscape). Every set
 that measured well was landscape. Benchmark photo set frozen at `photos_v4` (all landscape, 1×).
+
+## Stitching the photo tier (status 2026-10-04 17:00)
+
+Rooms are joined by matching a door seen from both sides (`place_fragments`). On `photos_v4` no
+doorway is seen fully from both sides: the hall sees the bedroom doors edge-on (door-voxel clusters
+0.15-0.44 m wide), and the first-set bedroom photos do not show their doors. Door candidates are also
+taken from door-labelled voxel clusters (`door_candidates`), but none qualifies. Test `photos_v6`:
+adding each hall-side doorway photo to both the hall's and the room's folder (portrait, padded to
+landscape) degraded every room's DA3 reconstruction (Room_2 lost, hall 15.7 m², Room_1 −9 %) and gave
+no matches; rejected. **The photo-tier whole-property stitch gate fails**: rooms are measured and
+reported unconnected (QC `fragments_unconnected`). Door detection worked in `photos_v2` when each
+room's own door was photographed square-on from inside (kitchen 0.90, Room_2 0.74, Room_3 0.74).

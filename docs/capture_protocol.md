@@ -38,7 +38,7 @@ For each room, **6–8 photos** (never more than 8), **landscape (phone sideways
 
 1. **Shoot across the room, from its edges.** Stand in a **corner** (back to the walls) and photograph the opposite side of the room. Every photo must show the **floor along the far wall** and the **ceiling line** — if you see only wall, step back.
 2. **Positions:** each of the **four corners** and the **doorway**. From each spot take 1–2 photos (turn about 45° between them) so neighbouring photos overlap.
-3. **The door, square-on from inside the room**, 2–3 m away, the whole frame from floor to above its top. Do this in **every** room, including the hall side of each bedroom door: rooms are joined on the plan by matching these doors.
+3. **The room's door, square-on from inside the room**, landscape, 2–3 m back, the whole frame from floor to above its top. In the hall, do the same for each doorway from the hall side (in the hall's folder). Rooms are joined on the plan by matching a door seen from both sides.
 4. **One room per folder, and stay in it.** Don't photograph through an open doorway into the next space.
 5. Avoid people in frame, mirrors face-on, and photos aimed only at a window.
 
