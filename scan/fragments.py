@@ -226,9 +226,10 @@ def _cached_infer(mv, images: list[Path], path: Path, process_res: int = PHOTO_D
         if "names" in z.files and list(z["names"]) == list(key):
             return MultiViewResult(z["depth"].astype(np.float32), z["conf"].astype(np.float32), z["T"], z["K"])
     r = mv.infer(images, process_res=process_res)
-    np.savez_compressed(path, names=key, depth=r.depth.astype(np.float16), conf=r.conf.astype(np.float16),
-                        T=r.T_world_cam, K=r.K)
-    return MultiViewResult(r.depth, r.conf, r.T_world_cam, r.K)
+    depth, conf = r.depth.astype(np.float16), r.conf.astype(np.float16)
+    np.savez_compressed(path, names=key, depth=depth, conf=conf, T=r.T_world_cam, K=r.K)
+    # return exactly what the cache will replay, so a cold run and a cached re-run are identical
+    return MultiViewResult(depth.astype(np.float32), conf.astype(np.float32), r.T_world_cam, r.K)
 
 
 def _cached_metric(mv, images: list[Path], result, path: Path, n: int = PHOTO_METRIC_N) -> list[float]:
@@ -294,7 +295,7 @@ def _frames_multiview(mv, images: list[Path], metric: list[np.ndarray], indices:
 
 
 def video_fragments_da3(mv, video: Path, capture_id: str, cache_root: Path, device: str | None,
-                        cfg: VideoConfig | None = None, n_frames: int = 160, chunk: int = 32, overlap: int = 16,
+                        cfg: VideoConfig | None = None, n_frames: int | None = None, chunk: int = 32, overlap: int = 16,
                         process_res: int = 336, per_chunk: bool = True) -> tuple[CaptureMeta, list[Fragment]]:
     """Video -> fragment(s) with DA3 poses.
 
@@ -321,6 +322,8 @@ def video_fragments_da3(mv, video: Path, capture_id: str, cache_root: Path, devi
     else:
         keys = select_keyframes(video, cfg.target_keyframes, rgb_dir)
         manifest.write_text(json.dumps({"sig": sig, "keys": keys}))
+    if n_frames is None:  # keep the frame density of the benchmark walk (~0.85 per second), 160-240 frames
+        n_frames = int(np.clip(round(meta.duration_s * 0.85), 160, 240))
     picks = np.unique(np.linspace(0, len(keys) - 1, min(n_frames, len(keys))).round().astype(int))
     keys = [keys[k] for k in picks]
     images = [rgb_dir / f"{i:06d}.jpg" for i, _ in keys]
@@ -338,6 +341,8 @@ def video_fragments_da3(mv, video: Path, capture_id: str, cache_root: Path, devi
             ratio = float(z["metric"])
         else:
             res = mv.infer([images[i] for i in ids], process_res=process_res)
+            res = MultiViewResult(res.depth.astype(np.float16).astype(np.float32),  # = what the cache replays
+                                  res.conf.astype(np.float16).astype(np.float32), res.T_world_cam, res.K)
             # metric scale: 4 frames for a single pass, 1 per chunk otherwise (DA3METRIC is slow on CPU)
             rs = mv.metric_scale([images[i] for i in ids], res, n=4 if len(starts) == 1 else 1)
             ratio = float(np.median(rs))
@@ -572,6 +577,12 @@ def run_fragment(frag: Fragment, keep_largest: bool) -> FragmentRun | None:
         if attached:
             frag.note += f"; {attached} outline edge(s) linked to nearby wall planes"
         res.openings = find_openings(res.model, res.layout, res.rooms, res.labelled)
+        extra = door_candidates(res.model, res.rooms, res.openings)
+        for k, o in enumerate(extra):
+            o.id = len(res.openings) + k
+        res.openings += extra
+        if extra:
+            frag.note += f"; {len(extra)} door(s) from door-labelled voxels"
     except Exception as exc:  # a fragment too small to give a room must not stop the capture
         frag.note += f"; no room ({type(exc).__name__}: {exc})"
         try:
@@ -630,6 +641,81 @@ def attach_wall_planes(rooms, model, frame, tol_m: float = 0.2, min_overlap_m: f
                 wm.coverage = round(min(1.0, best[0] / max(wm.length_m, 1e-6)), 3)
                 n += 1
     return n
+
+
+def door_candidates(model, rooms, existing, min_w: float = 0.55, max_w: float = 1.4, min_top: float = 1.7,
+                    max_bottom: float = 0.4, edge_dist_m: float = 0.6) -> list:
+    """Doors found directly from clusters of door-labelled voxels.
+
+    With a handful of photos a door often lies on a wall segment the room outline does not fully
+    cover (or sits recessed in its frame), so the wall-elevation search (C8) sees no door votes. A
+    cluster of door voxels that is door-sized (0.55-1.4 m wide, reaching from near the floor to above
+    1.7 m) and lies along a room edge is reported as a door on that edge. Doors already found by C8
+    (within 0.6 m) are not duplicated.
+    """
+    from scipy import ndimage
+
+    from scan.openings import Opening
+    from scan.semantics.classes import Surface
+
+    g = model.grid
+    if g is None or model.floor is None:
+        return []
+    sel = g.labels == Surface.DOOR
+    if sel.sum() < 50:
+        return []
+    P = g.centers[sel]
+    cell = 0.05
+    ij = np.floor(P[:, [0, 2]] / cell).astype(int)
+    lo = ij.min(axis=0)
+    occ = np.zeros(tuple(ij.max(axis=0) - lo + 1), bool)
+    occ[tuple((ij - lo).T)] = True
+    lab, n = ndimage.label(ndimage.binary_dilation(occ, iterations=1))
+    comp = lab[tuple((ij - lo).T)]
+    out = []
+    near = [np.array(o.center_xz) for o in existing if o.kind in ("door", "opening")]
+    for c in range(1, n + 1):
+        Q = P[comp == c]
+        if len(Q) < 30:
+            continue
+        xz = Q[:, [0, 2]]
+        mu = xz.mean(axis=0)
+        U, S, Vt = np.linalg.svd(xz - mu, full_matrices=False)
+        d = Vt[0]
+        t = (xz - mu) @ d
+        width = float(np.percentile(t, 97) - np.percentile(t, 3)) + g.voxel_size
+        fy = model.floor.y_at(*mu)
+        bottom, top = float(np.percentile(Q[:, 1], 3) - fy), float(np.percentile(Q[:, 1], 97) - fy)
+        if not (min_w <= width <= max_w and top >= min_top and bottom <= max_bottom):
+            continue
+        centre = mu + d * float(np.percentile(t, 97) + np.percentile(t, 3)) / 2
+        if any(np.linalg.norm(centre - c0) < 0.6 for c0 in near):
+            continue
+        best = None
+        for room in rooms:
+            C = np.array(room.corners_xz, float)
+            for k in range(len(C)):
+                a, b = C[k], C[(k + 1) % len(C)]
+                e = b - a
+                L = float(np.linalg.norm(e))
+                if L < width * 0.8 or abs(e @ d) / L < 0.9:
+                    continue
+                u = float(np.clip((centre - a) @ e / L ** 2, 0, 1))
+                dist = float(np.linalg.norm(a + u * e - centre))
+                if dist <= edge_dist_m and (best is None or dist < best[0]):
+                    best = (dist, room, k, a + u * e, u * L)
+        if best is None:
+            continue
+        _, room, k, on_edge, along = best
+        out.append(Opening(
+            id=-1, room_id=room.id, room_name=room.name, wall_index=k, wall_ids=room.walls[k].wall_ids,
+            kind="door", offset_m=round(max(0.0, along - width / 2), 3), width_m=round(width, 4),
+            width_sigma_m=0.06, height_m=round(top, 3), sill_m=0.0,
+            center_xz=(round(float(on_edge[0]), 4), round(float(on_edge[1]), 4)), jambs_observed=0,
+            covered=True, head_observed=True, low_evidence=True,
+            evidence={"source": "door_voxels", "voxels": int(len(Q)), "edge_distance_m": round(best[0], 3)}))
+        near.append(on_edge)
+    return out
 
 
 # ---------- placing fragments by doors ----------
