@@ -393,7 +393,9 @@ def cmd_drift(args: argparse.Namespace) -> int:
         return 2
     started = time.perf_counter()
     off = run_pipeline(fs, drift=False)
-    on = run_pipeline(fs, drift=True)
+    from scan.drift import DriftConfig
+
+    on = run_pipeline(fs, drift=True, drift_config=DriftConfig(force_heading=True))  # ablation: correction forced on
     m_off, m_on = consistency_metrics(off), consistency_metrics(on)
     out_dir = Path(args.out) / fs.meta.capture_id
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -530,7 +532,18 @@ def cmd_run(args: argparse.Namespace) -> int:
     result = build_result(res, time.perf_counter() - started)
     out_dir = Path(args.out) / fs.meta.capture_id
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "result.json").write_text(to_json(result), encoding="utf-8")
+    payload = to_json(result)
+    factors_path = Path(args.calibration)
+    if factors_path.exists():  # C12: benchmark-fitted interval factors
+        import json as _json
+
+        from scan.calibrate import apply, load_factors
+        from scan.contract.schema import Result
+
+        data = apply(_json.loads(payload), load_factors(factors_path))
+        payload = Result.model_validate(data).model_dump_json(indent=2) + chr(10)
+        result = Result.model_validate(data)
+    (out_dir / "result.json").write_text(payload, encoding="utf-8")
     write_reports(res.qc.report, out_dir)
     render_floor_plan(res.plan, res.layout.floor_map.frame, out_dir / "plan.png",
                       damage=res.damage.regions if res.damage else None)
@@ -550,7 +563,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     errors = [i for i in c.issues if i.severity == "error"]
     for i in errors:
         print(f"  [x] {i.code}: {i.message}")
-    print(f"json   {out_dir / 'result.json'}  (schema {result.schema_version}, intervals uncalibrated)")
+    print(f"json   {out_dir / 'result.json'}  (schema {result.schema_version}, intervals "
+          f"{'calibrated (C12)' if result.processing.calibrated else 'uncalibrated'})")
     print(f"plan   {out_dir / 'plan.png'}")
     return 1 if errors or p.overlaps else 0
 
@@ -564,6 +578,28 @@ def cmd_schema(args: argparse.Namespace) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(json_schema(), indent=2) + chr(10), encoding="utf-8")
     print(f"schema written to {out}")
+    return 0
+
+
+def cmd_calibrate(args: argparse.Namespace) -> int:
+    """C12: fit interval factors on benchmark reports; optionally apply them to existing results."""
+    import json
+
+    from scan.calibrate import apply, fit, load_factors, write_factors
+
+    sources = [Path(p) for p in args.reports]
+    factors = fit(sources)
+    path = write_factors(factors, Path(args.out), sources)
+    print(f"CALIBRATE  {len(factors)} factor(s) -> {path}")
+    for f in factors:
+        print(f"  {f.tier:6s} {f.kind:8s} k={f.k:.2f}  n={f.n}  coverage {f.coverage_before:.0%} -> {f.coverage_after:.0%}"
+              f"  (leave-one-out {f.coverage_loo:.0%})")
+    for res_path in args.apply or []:
+        res_path = Path(res_path)
+        data = apply(json.loads(res_path.read_text(encoding="utf-8")), load_factors(path))
+        out = res_path.with_name(res_path.stem + ".calibrated.json")
+        out.write_text(json.dumps(data, indent=2) + chr(10), encoding="utf-8")
+        print(f"  applied -> {out}")
     return 0
 
 
@@ -715,6 +751,8 @@ def build_parser() -> argparse.ArgumentParser:
     rn.add_argument("--no-drift-fix", action="store_true")
     rn.add_argument("--cache", default=str(DEFAULT_CACHE_ROOT), help="frame cache folder")
     rn.add_argument("--out", default="outputs", help="output folder")
+    rn.add_argument("--calibration", default="calibration/factors.json",
+                    help="C12 interval factors (applied when the file exists)")
     rn.set_defaults(func=cmd_run)
 
     sc = sub.add_parser("schema", help="write the published JSON schema of result.json")
@@ -727,6 +765,12 @@ def build_parser() -> argparse.ArgumentParser:
     bn.add_argument("--capture", required=True, help="capture name used in the YAML mapping, e.g. lidar_flat")
     bn.add_argument("--out", default="bench/reports")
     bn.set_defaults(func=cmd_bench)
+
+    cb = sub.add_parser("calibrate", help="C12: fit interval factors on benchmark reports")
+    cb.add_argument("reports", nargs="+", help="benchmark report JSON files (scan bench output)")
+    cb.add_argument("--out", default="calibration/factors.json")
+    cb.add_argument("--apply", nargs="*", help="result.json files to re-interval (writes *.calibrated.json)")
+    cb.set_defaults(func=cmd_calibrate)
     return parser
 
 

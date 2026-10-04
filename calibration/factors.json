@@ -1,0 +1,47 @@
+{
+  "method": "per (tier, kind): sigma *= q90(|error| / sigma) / 1.6449, fitted on the tape benchmark",
+  "min_rows": 4,
+  "sources": [
+    "bench/reports/lidar_flat/lidar_flat.json",
+    "bench/reports/photos_flat/photos_flat.json",
+    "bench/reports/video_flat/video_flat.json"
+  ],
+  "factors": [
+    {
+      "tier": "lidar",
+      "kind": "ceiling",
+      "k": 1.09,
+      "n": 4,
+      "coverage_before": 0.75,
+      "coverage_after": 1.0,
+      "coverage_loo": 0.75
+    },
+    {
+      "tier": "lidar",
+      "kind": "wall",
+      "k": 1.789,
+      "n": 7,
+      "coverage_before": 0.714,
+      "coverage_after": 1.0,
+      "coverage_loo": 0.857
+    },
+    {
+      "tier": "photo",
+      "kind": "ceiling",
+      "k": 2.321,
+      "n": 4,
+      "coverage_before": 0.75,
+      "coverage_after": 1.0,
+      "coverage_loo": 0.75
+    },
+    {
+      "tier": "photo",
+      "kind": "wall",
+      "k": 1.0,
+      "n": 7,
+      "coverage_before": 1.0,
+      "coverage_after": 1.0,
+      "coverage_loo": 1.0
+    }
+  ]
+}
