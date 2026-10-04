@@ -142,3 +142,22 @@ gate**; the structural fix is a scale reference shared across the walkthrough (e
 IMU/ARKit odometry, which a plain video file does not record) or a multi-view model with long-range
 memory. The loop's value is the diagnosis: three measured attempts, each prediction recorded before
 its result.
+
+## Approach 2 — video as per-room photo sets (shipped default; prediction written before its run on `video_flat`)
+
+**Fix:** split the walkthrough into rooms by shared views (verified SIFT matches between frames; boundaries
+where frames before and after share few matches; revisits merged), then reconstruct each room like a photo
+folder — DA3 on ~8 frames spread over the room's whole time on screen, metric scale from 4 of them.
+Measured on later captures before this prediction: `video_v2` (close to walls) 5 small rooms, no ceilings;
+`video_v3` (portrait, room centres) 4 rooms of which 3 were hall pieces, Room_1 −9 % / −39 %, ceilings −18 %.
+
+**Prediction for `video_flat` (the original 168 s clip, filmed close to walls, fast):** 3–6 rooms, mostly
+partial; no bedroom dimension within ±8 %; the ±3 % video wall gate **stays failing** (0 of 10 matched).
+Runtime drops from ~45 min (chunk mode) to ~15–20 min.
+
+## Outcome of approach 2 on `video_flat` (recorded after the run)
+
+**Prediction largely held** (5 rooms, partial; gate still failing), runtime prediction wrong (33 min, not
+15-20). Split into 10 segments, 5 gave rooms: 9.7, 8.1, 3.5, 2.5, 10.2 m²; ceilings 2.32-2.45 m where seen
+(tape 2.89-2.94: ~18 % low, the same bias as on `video_v3`). Before vs after on the same clip: overlapping
+pairs 7 → 0, net area 50.9 → 34.1 m², rooms matchable to tape 0 → 0. The gate did not move.
