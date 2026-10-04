@@ -12,8 +12,9 @@ Three input tiers, one output contract:
 | Video | Handheld walkthrough clip | Any iPhone 15+ |
 | LiDAR | Depth + poses + intrinsics | Pro-class iPhones |
 
-> 🚧 Work in progress. Design: [docs/HLD.md](docs/HLD.md) ·
-> [visual overview](docs/HLD_visual.html) · LLDs in [docs/LLD](docs/LLD).
+Design: [docs/HLD.md](docs/HLD.md) · [visual overview](docs/HLD_visual.html) · LLDs in [docs/LLD](docs/LLD) ·
+[technical report](docs/technical_report.md) · [compliance matrix](docs/compliance_matrix.md) ·
+capture: [protocol](docs/capture_protocol.md), [device matrix](docs/device_matrix.md).
 
 ## Setup
 
@@ -24,13 +25,19 @@ python -m venv .venv
 .venv/Scripts/activate        # Windows; use .venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
 pip install -e .
-python scripts/fetch_weights.py   # one-time model download (~1.3 GB with all registered models); the pipeline itself runs offline
+# Depth Anything 3 (photo / video tiers), pinned commit, its own dependencies come from requirements.txt
+pip install --no-deps --ignore-requires-python "git+https://github.com/ByteDance-Seed/Depth-Anything-3@3d835ec1a5802d64a8b8b15f817a1ab54809bfe4"
+python scripts/fetch_weights.py   # one-time model download (~2.3 GB); the pipeline itself runs offline
 ```
 
-Models used so far (weights in `weights/`, never committed):
+About 10 minutes on a 50 Mbit/s connection, most of it the weight download.
+
+Models (weights in `weights/`, never committed; every `result.json` lists the ones it used):
 
 | Model | Purpose | Licence |
 |---|---|---|
+| Depth Anything 3 BASE (`depth-anything/DA3-BASE`) | Photo / video tiers: camera poses + depth from unposed images | Apache-2.0 |
+| Depth Anything 3 METRIC-LARGE (`depth-anything/DA3METRIC-LARGE`) | Photo / video tiers: metric scale (focal-aware) | Apache-2.0 |
 | SegFormer-B2, ADE20K (`nvidia/segformer-b2-finetuned-ade-512-512`) | Surface labels: wall, floor, ceiling, door, window, mirror | NVIDIA Source Code License (non-commercial) |
 | SegFormer-B0, ADE20K | Faster alternative (`--model segformer-b0-ade`) | same |
 | OWL-ViT B/32 (`google/owlvit-base-patch32`) | Damage detection from text prompts | Apache-2.0 |
@@ -51,8 +58,24 @@ Writes to `outputs/<capture_id>/`:
 | `qc_report.md` / `.json` | Capture quality issues with fixes |
 
 `scan run` exits 1 when the capture has QC errors or rooms overlap (the files are still written).
-Intervals are currently an uncalibrated error budget (`"calibrated": false`); benchmark calibration replaces it.
+Intervals use the C12 factors in `calibration/factors.json` when present (`"calibrated": true` on those
+quantities); everything else keeps the provisional error budget (`"calibrated": false`).
 `scan schema` regenerates the published schema from the models.
+
+Runtime, cold, on the reference laptop (i5-1135G7, 8 GB, CPU only): LiDAR ~6 min, photos ~20 min
+(5 rooms), video ~45 min (DA3 on CPU dominates; a GPU makes photo and video a few minutes).
+
+## Benchmark, calibration (regenerate every reported number)
+
+```bash
+scan run data/raw/benchmark/lidar_flat --device "iPhone 17 Pro"
+scan run data/raw/benchmark/photos_flat
+scan run data/raw/benchmark/video_flat --device "iPhone 15"
+scan bench outputs/<capture>/result.json bench/ground_truth/flat_3bhk.yaml --capture <capture> --out bench/reports/<capture>
+scan calibrate bench/reports/*/*.json --out calibration/factors.json
+```
+
+The frozen blind LiDAR run (made before the ground truth was shared) is in `bench/runs/blind_v1`.
 
 ## Step-by-step commands (debugging)
 

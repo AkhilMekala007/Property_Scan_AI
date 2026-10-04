@@ -1,7 +1,8 @@
 """Download pretrained model weights into weights/. The only step that uses the network.
 
 Usage:
-    python scripts/fetch_weights.py            # every model in the registry
+    python scripts/fetch_weights.py            # the models the pipeline runs (~2.3 GB)
+    python scripts/fetch_weights.py --all      # also registered alternatives (B0, OWLv2, SAM 2, DA2)
     python scripts/fetch_weights.py segformer-b2-ade
 """
 
@@ -18,6 +19,7 @@ from huggingface_hub import snapshot_download  # noqa: E402
 from scan.models import MODELS  # noqa: E402
 
 ALLOW = ["*.json", "*.safetensors", "*.txt"]
+DEFAULT = ["segformer-b2-ade", "owlvit-b32", "da3-base", "da3-metric-large"]  # what `scan run` uses
 
 
 def fetch(key: str) -> Path:
@@ -44,9 +46,10 @@ def fetch(key: str) -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("models", nargs="*", help=f"model keys (default: all): {', '.join(MODELS)}")
+    parser.add_argument("models", nargs="*", help=f"model keys (default: {', '.join(DEFAULT)}): {', '.join(MODELS)}")
+    parser.add_argument("--all", action="store_true", help="every registered model")
     args = parser.parse_args()
-    keys = args.models or list(MODELS)
+    keys = args.models or (list(MODELS) if args.all else DEFAULT)
     unknown = [k for k in keys if k not in MODELS]
     if unknown:
         parser.error(f"unknown model(s): {', '.join(unknown)}")

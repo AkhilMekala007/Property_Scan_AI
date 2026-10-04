@@ -34,6 +34,8 @@ from scan.io.photos import photo_info, read_photo
 from scan.io.video import probe, read_rgb
 
 PHOTO_MAX_SIDE = 1008
+PHOTO_DA3_RES = 504  # DA3-BASE input size for photos (392 tested: metric scale ~15 % low, walls 1/7 in gate)
+PHOTO_METRIC_N = 4  # photos per room for the DA3METRIC scale (2 tested: scale unstable)
 MIN_VIDEO_FRAGMENT = 6
 
 
@@ -215,24 +217,25 @@ def _multiview():
     return _MV or None
 
 
-def _cached_infer(mv, images: list[Path], path: Path):
+def _cached_infer(mv, images: list[Path], path: Path, process_res: int = PHOTO_DA3_RES):
     from scan.multiview import MultiViewResult
 
-    key = np.array([p.name for p in images])
+    key = np.array([p.name for p in images] + [f"res={process_res}"])
     if path.exists():
         z = np.load(path)
         if "names" in z.files and list(z["names"]) == list(key):
             return MultiViewResult(z["depth"].astype(np.float32), z["conf"].astype(np.float32), z["T"], z["K"])
-    r = mv.infer(images)
+    r = mv.infer(images, process_res=process_res)
     np.savez_compressed(path, names=key, depth=r.depth.astype(np.float16), conf=r.conf.astype(np.float16),
                         T=r.T_world_cam, K=r.K)
     return MultiViewResult(r.depth, r.conf, r.T_world_cam, r.K)
 
 
-def _cached_metric(mv, images: list[Path], result, path: Path) -> list[float]:
+def _cached_metric(mv, images: list[Path], result, path: Path, n: int = PHOTO_METRIC_N) -> list[float]:
+    path = path.with_name(f"{path.stem}_n{n}_r{result.depth.shape[2]}.npy")  # depends on n and DA3 size
     if path.exists():
         return [float(x) for x in np.load(path)]
-    ratios = mv.metric_scale(images, result)
+    ratios = mv.metric_scale(images, result, n=n)
     np.save(path, np.array(ratios))
     return ratios
 
@@ -502,7 +505,7 @@ def photo_fragments(room_dirs: dict[str, Path], capture_id: str, cache_root: Pat
         params = f"{focal},{w / 2},{h / 2},0"
         depth_size = (256, 192) if w >= h else (192, 256)
         depths_all = {}
-        for name in names:
+        for name in names if _multiview() is None else []:  # fallback path only: DA3 gives its own depth
             p = cache / (Path(name).stem + ".depth.npy")
             if not p.exists():
                 model = model or DepthModel()

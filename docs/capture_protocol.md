@@ -16,7 +16,7 @@ Follow these steps exactly. They work for any iPhone 15 or newer; the LiDAR scan
 |---|---|---|
 | A Pro iPhone (has LiDAR) | **LiDAR scan** (most accurate) | **Stray Scanner** (free, App Store) |
 | Any iPhone 15 or newer | **Video walkthrough** | Built-in **Camera**, Video mode |
-| Any iPhone 15 or newer | **Photos**, 8–12 per room | Built-in **Camera**, Photo mode |
+| Any iPhone 15 or newer | **Photos**, 6–8 per room | Built-in **Camera**, Photo mode |
 
 ## How to walk (LiDAR scan and video)
 
@@ -34,9 +34,9 @@ Time: about **1 minute per room**. A 3BHK takes 5–8 minutes.
 
 ## How to take photos (photo tier)
 
-For each room, **8–12 photos**, landscape, phone at chest height, **0.5× (ultra-wide) lens**:
+For each room, **6–8 photos** (never more than 8), landscape, phone at chest height, **0.5× (ultra-wide) lens**:
 
-1. **Walk the room, don't stand still.** Take a photo, take **one step sideways** along the wall, turn slightly, take the next. Each photo should **share about half its view** with the previous one. (Photos taken by only turning on one spot give no depth between them.)
+1. **Walk the room, don't stand still.** Take a photo, take **one or two steps sideways** along the wall, turn slightly, take the next. Each photo should **share about half its view** with the previous one. (Photos taken by only turning on one spot give no depth between them.)
 2. **Every wall in at least two photos, from two different places**, with the **floor line and the ceiling line** visible.
 3. **The door, square-on, from inside the room:** stand facing it, 2–3 m away, the whole door frame from floor to above the top in the photo. Do this in **every** room, including the hall side of each bedroom door. Rooms are joined on the plan by matching these doors.
 4. **One room per folder, and stay in it.** Don't photograph through an open doorway into the next space; if the hall and lobby run together, photograph them as two folders split at a natural boundary.

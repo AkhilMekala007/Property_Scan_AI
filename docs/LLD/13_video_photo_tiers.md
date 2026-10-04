@@ -56,3 +56,14 @@ DA3 is installed from GitHub at a pinned commit (`--no-deps`; its API module imp
 - CPU runtime: DA3-BASE ~25 s / image at 504 px; DA3METRIC-LARGE ~60 s / image at 504 px (336 px used).
 - Door detection on photos relies on closed-door labels; a room whose door is never photographed square-on cannot be placed.
 - No loop closure along the video: chunk-chain error accumulates (reported via the scale-drift warning).
+
+## Speed / accuracy trade-off (measured 2026-10-04, cold cache, i5-1135G7 CPU)
+
+| Photo settings | Cold runtime | Walls in ±8 % | Median wall error | Ceilings median error |
+|---|---|---|---|---|
+| DA3 504 px, metric on 4 photos/room (**shipped**) | ~18–22 min | 7/7 | 0.9 % | 3.1 % |
+| DA3 392 px, metric on 2 photos/room ("fast") | 15 min | 1/7 | 12.1 % | 14.4 % |
+
+The fast setting's metric scale came out ~15 % low (ceilings ~2.4 m vs 2.9 m tape) and Room_2 was lost.
+The brief sets no pipeline runtime limit (its 15 minutes is README-to-running on a clean machine), so
+accuracy wins; a GPU would make the shipped setting run in a few minutes.
