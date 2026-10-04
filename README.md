@@ -174,7 +174,7 @@ pytest -m sample    # also load the provided sample captures (slow, needs the da
 ## Benchmark data (privacy)
 
 **Download:** [property_scan_benchmark_v1.zip](https://github.com/AkhilMekala007/Property_Scan_AI/releases/download/benchmark-v1/property_scan_benchmark_v1.zip)
-(1.13 GB, GitHub release `benchmark-v1`). Unzip so the captures sit in `data/raw/benchmark/`:
+(1.13 GB, GitHub release `benchmark-v1`; SHA-256 `a1285ec78c422ae151ca65510cd4c2e130800314b9cad2f7a85e84ecbb71e7ca` — check with `certutil -hashfile property_scan_benchmark_v1.zip SHA256` on Windows or `sha256sum` elsewhere). The data is kept out of git on purpose (the repo stays small); unzip so the captures sit in `data/raw/benchmark/`:
 
 ```bash
 python -c "import zipfile; zipfile.ZipFile('property_scan_benchmark_v1.zip').extractall('data/tmp')"
