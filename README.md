@@ -24,6 +24,8 @@ capture: [protocol](docs/capture_protocol.md), [device matrix](docs/device_matri
 | Photos (iPhone 15) | **7/7 in ±8 %**, median 0.9 % | 3/4 | rooms measured; whole-property stitch fails (unconnected) |
 | Video (iPhone 15) | fails ±3 % | — | documented fix loop: `docs/fix_loop_declaration.md` |
 
+**Provided sample data:** outputs for all three captures (JSON, plan, QC report) in [results/sample_data/](results/sample_data/README.md).
+
 Full tables: [bench/REPORT.md](bench/REPORT.md) (generated from data). Gate-by-gate status:
 [docs/compliance_matrix.md](docs/compliance_matrix.md).
 
