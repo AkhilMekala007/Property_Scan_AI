@@ -62,8 +62,8 @@ Intervals use the C12 factors in `calibration/factors.json` when present (`"cali
 quantities); everything else keeps the provisional error budget (`"calibrated": false`).
 `scan schema` regenerates the published schema from the models.
 
-Runtime, cold, on the reference laptop (i5-1135G7, 8 GB, CPU only): LiDAR ~6 min, photos ~20 min
-(5 rooms), video ~45 min (DA3 on CPU dominates; a GPU makes photo and video a few minutes).
+Runtime, cold, on the reference laptop (i5-1135G7, 8 GB, CPU only): LiDAR ~6 min, photos ~22–27 min
+(5 rooms), video ~25–35 min (DA3 on CPU dominates; a GPU makes photo and video a few minutes).
 
 ## Benchmark, calibration (regenerate every reported number)
 
@@ -159,3 +159,11 @@ scan damage path/to/capture --device "iPhone 15 Pro"
 pytest              # fast unit tests on synthetic captures
 pytest -m sample    # also load the provided sample captures (slow, needs the data locally)
 ```
+
+## Benchmark data (privacy)
+
+Raw captures stay in `data/raw/` (never committed). `python scripts/redact_release.py` builds a publishable
+copy in `data/release/`: GPS fields in photo EXIF zeroed in place (pixels verified identical, so every
+number reproduces), video location tags blanked, Polycam altitude / compass rows removed, and the Polycam
+spatial report and raw zip (which contain coordinates) withheld. `python scripts/make_bench_report.py`
+regenerates `bench/REPORT.md` from the benchmark JSON.

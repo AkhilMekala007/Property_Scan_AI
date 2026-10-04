@@ -21,7 +21,7 @@ Follow these steps exactly. They work for any iPhone 15 or newer; the LiDAR scan
 ## How to walk (LiDAR scan and video)
 
 1. Start recording **just inside the entrance**. Hold the phone at **chest height**, screen facing you.
-2. Walk **slowly** — about **one step per second** — **through the middle of each room**, not along the walls: stay **2 m or more** from the wall you are filming. **Video: 1× lens** (not 0.5× or 0.7×), and tilt the phone slightly down so the **line where the floor meets the wall stays in the lower third** of the picture.
+2. Walk **slowly** — about **one step per second** — **through the middle of each room**, not along the walls: stay **2 m or more** from the wall you are filming. **Video: 1× lens, landscape (phone sideways; a portrait video gave a 2.7× scale spread between segments)**, and tilt the phone slightly down so the **line where the floor meets the wall stays in the lower third** of the picture.
 3. In **every room**: film all walls, **tilt the phone up to the ceiling for 5 seconds**, then **down to the floor for 3 seconds**.
 4. **Turn slowly** in corners (about 5 seconds for a quarter turn). Never spin quickly.
 5. **Walk through every doorway** (don't just look through it), pausing 2 seconds in the doorway so both sides of the door are seen.

@@ -18,6 +18,7 @@ weights/
 
 # Raw captures & run outputs (published separately / regenerated)
 data/raw/
+data/release/
 outputs/
 *.mov
 *.MOV

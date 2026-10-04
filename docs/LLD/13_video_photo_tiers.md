@@ -101,3 +101,9 @@ landscape) degraded every room's DA3 reconstruction (Room_2 lost, hall 15.7 m²,
 no matches; rejected. **The photo-tier whole-property stitch gate fails**: rooms are measured and
 reported unconnected (QC `fragments_unconnected`). Door detection worked in `photos_v2` when each
 room's own door was photographed square-on from inside (kitchen 0.90, Room_2 0.74, Room_3 0.74).
+
+## Video orientation (measured 2026-10-04, video_v3)
+
+Portrait walkthrough from the middle of the rooms (250 s): 10 fragments, 15 overlaps, 38.4 m² net, no
+ceiling detected; per-chunk metric scale 1.34-3.57 (2.7x spread) vs 1.4-1.5x on the landscape clips.
+Same direction as the portrait photo set: DA3METRIC's scale is unstable in portrait. Protocol: landscape.

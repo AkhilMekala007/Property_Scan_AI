@@ -1,87 +1,136 @@
 # Property Scan AI — technical report
 
-*DRAFT 2026-10-04 05:00 IST. Numbers marked ⏳ are updated after the morning captures (photo retake, repeat room, staged damage, opening ground truth).*
-
 ## 1. What it does
 
-One command per capture — `scan run <folder>` — turns an iPhone capture into a dimensioned, stitched floor plan (`plan.png`) and a JSON result against a published schema (`schema/result.schema.json`): rooms with walls, ceiling height, floor area and openings; adjacency; per-surface damage regions with class and metric extent; concealed-damage flags naming the rule that fired; scope line items keyed to surfaces; and a 90 % interval on every number. The tier (photos, video, LiDAR) is detected from the files. Everything runs offline on a CPU laptop (i5-1135G7, 8 GB, no GPU); all pretrained models are listed with licences in every result.
+`scan run <folder>` turns an iPhone capture into a dimensioned floor plan (`plan.png`) and a JSON result validated against a published schema (`schema/result.schema.json`). The result has:
 
-Capture route 2: stock apps and a one-page protocol (`docs/capture_protocol.md`): Stray Scanner for LiDAR, the built-in Camera for video and photos.
+- rooms with walls, ceiling height, floor area and openings
+- adjacency between rooms
+- per-surface damage regions with class and metric extent
+- concealed-damage flags naming the rule that fired
+- scope line items keyed to surfaces
+- a 90 % interval on every number
+
+The tier (photos, video or LiDAR) is detected from the files. Everything runs offline on a CPU laptop (i5-1135G7, 8 GB, no GPU). Every result lists the models it used, with their licences.
+
+**Capture route 2:** stock apps and a one-page protocol (`docs/capture_protocol.md`). Stray Scanner records the LiDAR tier; the built-in Camera records video and photos (1× lens, landscape).
 
 ## 2. Architecture
 
 ```
-capture folder ─► detect tier ─► adapter ─► FrameSet (RGB, depth, poses, intrinsics)
-   LiDAR: Stray Scanner depth + ARKit poses
-   video / photos: DA3-BASE poses + depth, DA3METRIC-LARGE metric scale, gravity from surfaces
-FrameSet ─► C3 QC ─► C5 drift correction (LiDAR) ─► C4 SegFormer surface labels ─► C7a voxel fusion + planes
-        ─► C6 rooms (floor map) ─► C7b room polygons from wall lines ─► C8 openings (wall elevations)
-        ─► C9 stitch (shared walls, overlaps, adjacency) ─► C10 damage (OWL-ViT + mask refinement)
-        ─► C11 rules (YAML) ─► C13 contract + intervals (C12 calibrated) ─► result.json, plan.png
+folder ─► detect tier ─► FrameSet (RGB, depth, poses, intrinsics)
+  LiDAR: Stray Scanner depth + ARKit poses ─► C5 drift check / correction
+  photos: per room folder ─► DA3-BASE poses + depth, DA3METRIC scale ─► one fragment per room
+  video: split into rooms by shared views ─► each room like a photo folder
+FrameSet ─► C3 QC ─► C4 SegFormer labels ─► C7a labelled voxels + planes ─► C6 rooms ─► C7b polygons
+  ─► C8 openings ─► fragments placed by matching doors ─► C9 stitch ─► C10 damage ─► C11 rules
+  ─► C13 contract with C12-calibrated intervals ─► result.json, plan.png
 ```
 
-Design choices worth defending:
-- **Structure from planes, not meshes.** Walls, floor and ceiling are fitted planes in a 2 cm labelled voxel grid; room outlines are built from wall lines, so a dimension is a plane-to-plane distance rather than a mesh edge.
-- **Measured vs inferred is explicit.** An outline edge with no fitted wall is marked inferred (drawn dashed), widens its interval, and is never searched for openings.
-- **One contract for every tier.** Photo and video tiers reuse the LiDAR pipeline unchanged from C3 on; only the source of poses, depth and scale differs, and their error budgets are wider.
+These design choices are defended in `docs/HLD.md` and `docs/LLD/`:
 
-## 3. Tier design and device matrix
+- **Structure from planes.** Walls, floor and ceiling are planes fitted to a 2 cm labelled voxel grid, and room outlines are built from wall lines.
+- **Measured and inferred are explicit.** An outline edge with no fitted wall is drawn dashed and gets a wider interval.
+- **One pipeline for every tier.** Only the source of poses, depth and scale differs between tiers.
+- **Refusing to guess.** Rooms that cannot be placed through a door are reported as unconnected (`fragments_unconnected`), not placed by assumption.
 
-| Tier | Poses | Depth | Scale | Benchmark (tape) |
+## 3. Tiers, device matrix and benchmark
+
+The benchmark is a 3BHK flat: 3 bedrooms, a kitchen, and a hall that doubles as the connector. Each room was measured with a tape, and the same flat was captured at all three tiers. The full tables are in `bench/REPORT.md`, generated from data by `scripts/make_bench_report.py`.
+
+| Tier (device) | Poses / scale | Walls in gate | Median wall error | Ceilings in gate |
 |---|---|---|---|---|
-| LiDAR (iPhone Pro, Stray Scanner) | ARKit + C5 loop closure | LiDAR | sensor | walls 4/7 in 1 cm/0.5 %, median 0.5 %; ceilings 3/4 in 1.5 cm |
-| Video (iPhone 15+) | DA3-BASE, overlapping chunks | DA3 | DA3METRIC per chunk | fails ±3 % (§6) |
-| Photos (iPhone 15+, 2–8 per room) | DA3-BASE per room | DA3 | DA3METRIC (2 photos / room) | walls 7/7 in ±8 %, median 0.9 % ⏳ |
+| LiDAR (iPhone 17 Pro) | ARKit + drift check / sensor | 4/7 (1 cm or 0.5 %†) | **0.5 %** | 3/4 (≤ 1.5 cm) |
+| Photos (iPhone 15, 6–8 per room) | DA3 per room / DA3METRIC | **7/7** (±8 %) | 0.9 % | 3/4 |
+| Video (iPhone 15) | DA3 per room segment / DA3METRIC | 0/10 (±3 %) | — | 0/5 |
 
-Why DA3 for photos and video: COLMAP registered 0 of 8 photos per room (taken turning on the spot: no baseline) and split the video into 18 pieces too short to contain a room; depth-lifted SIFT matching registered 4 of 8. DA3 posed all photos of every room. The focal-blind metric depth model (Depth Anything V2) overestimated scale by ~25 % on the iPhone 15 (ceiling 3.67 m vs 2.93 m); DA3METRIC uses the focal length and gave 2.74 m.
+† The brief gives no LiDAR wall gate, so the repeatability tolerance is used as a stand-in.
 
-Full matrix: `docs/device_matrix.md` ⏳.
+**Why DA3 for photos and video.** COLMAP registered no photos per room: the photos are taken while turning on the spot, so there is no baseline. On video, COLMAP split the walkthrough into 18 pieces, each too short to contain a room. DA3 posed every photo in every room.
+
+**Choosing the scale model.** The focal-blind metric model (Depth Anything V2) overestimated scale by about 25 % (ceiling 3.67 m against 2.93 m). DA3METRIC uses the focal length and gave 2.74 m.
+
+**Capture lessons, all measured** (`docs/LLD/13_video_photo_tiers.md`):
+
+- **Ultra-wide 0.5× lens:** DA3 misjudges its focal length by 18–43 %, and rooms came out up to 11 % small.
+- **Close-ups along the walls:** too little floor is visible, so no room is built.
+- **Portrait orientation:** the metric scale becomes unstable (30 % error in photos, a 2.7× spread across video segments).
+
+These findings drove the protocol: 1× lens, landscape, shoot across the room from the corners.
 
 ## 4. Drift handling (LiDAR)
 
-Two mechanisms, in order. (1) **Loop closure:** fragments of 20 keyframes that revisit the same space are aligned by multi-scale ICP, accepted only on a clear tight-window fitness gain and a constraint-ratio check (no sliding along one wall), and a yaw + translation pose graph is solved (gravity trusted from the IMU). (2) **Plane-anchored heading** when no revisit qualifies: each fragment's wall directions are compared with the capture's, and the deviation is removed by re-integrating its motion.
+There are two mechanisms, tried in order.
 
-On the 3BHK none of 26 revisits overlapped enough (the walk does not return to a surface), so (2) applies: heading drift median 0.42°, max 0.85°; correction brings fragment deviation from 0.51° to 0.10°. Ablation, correction on vs off: wall voxels on planes 0.75 → 0.82, shared walls 3 → 5, footprint 80.9 → 79.3 m² — but tape walls in gate 4/7 → 2/7, because room assembly re-forms outlines after cm-level pose changes (a 0.85° heading error alone changes a 3.5 m wall by < 1 mm). We therefore measure and report drift on every capture and apply the heading correction above 1°; this threshold was chosen after the ablation (`docs/LLD/09_drift.md`). The underlying weakness — outline instability — is the same one that fails repeatability (§8).
+1. **Loop closure.** Fragments of 20 keyframes that revisit the same space are aligned by multi-scale ICP. An alignment is accepted only if it clearly improves the tight-window fitness and passes a constraint check that rules out sliding along a wall. A yaw-and-translation pose graph is then solved.
+2. **Plane-anchored heading.** When no revisit qualifies, each fragment's wall directions are compared with the capture's dominant directions.
+
+On the 3BHK, none of the 26 revisits overlapped enough, because the walk never returns to a surface. Measured heading drift was 0.42° median and 0.85° maximum. The ablation (correction on versus off):
+
+| Metric | Correction off | Correction on |
+|---|---|---|
+| Wall voxels on planes | 0.75 | 0.82 |
+| Shared walls | 3 | 5 |
+| Footprint | 80.9 m² | 79.3 m² |
+| Tape walls in gate | 4/7 | 2/7 |
+
+A 0.85° heading error changes a 3.5 m wall by less than 1 mm. The loss comes from room assembly re-forming outlines after centimetre-level pose changes, so drift is measured and reported on every capture, and the correction is applied only above 1°. That threshold was chosen after this ablation (`docs/LLD/09_drift.md`).
 
 ## 5. Error budget and calibration
 
-Every number is a `Measure` {value, lo, hi, sigma}: sigma combines the fit uncertainty (plane fits, jamb positions) with per-tier systematic terms (depth bias, labelling, segmentation), z = 1.645 for 90 %. Quantities seen only from one side, or bounded by an unobserved head, are lower bounds.
+Every number is a `Measure` {value, lo, hi, sigma}. Sigma combines the fit uncertainty (plane fits, jamb positions) with per-tier systematic terms, and z = 1.645 gives the 90 % interval. Lower bounds are used where the head of an opening was never seen.
 
-C12 (`scan calibrate`) fits one factor per tier and quantity on the tape benchmark: k = q90(|error| / sigma) / 1.645, never below 1 (a handful of rows is not evidence for narrower intervals). Values never change, only widths.
+C12 (`scan calibrate`) fits one factor per tier and quantity on the tape benchmark: k = q90(|error| / sigma) / 1.645, never below 1. Values never change, only interval widths.
 
-| Tier / quantity | n | k | coverage before → after | leave-one-out |
+| Tier / quantity | n | k | Coverage before → after | Leave-one-out |
 |---|---|---|---|---|
 | LiDAR walls | 7 | 1.79 | 71 % → 100 % | 86 % |
 | LiDAR ceilings | 4 | 1.09 | 75 % → 100 % | 75 % |
 | Photo walls | 7 | 1.00 | 100 % → 100 % | 100 % |
-| Photo ceilings | 4 | 2.32 | 75 % → 100 % | 75 % |
+| Photo ceilings | 4 | 1.72 | 75 % → 100 % | 75 % |
 
-In-sample coverage is 100 % by construction; leave-one-out is the honest estimate for a new capture. Video has no matched rows and keeps the provisional budget (marked `calibrated: false`). ⏳ refit after the morning captures.
+In-sample coverage is 100 % by construction, so leave-one-out is the honest estimate (75–100 %). With n = 4–7 rows per factor, the factors are uncertain, and the report says so. Video has no matched rows, so it keeps the provisional budget and stays marked `calibrated: false`.
 
-## 6. The fix loop (worst gate: video wall lengths, ±3 %)
+**Wider intervals for thinner data.** Photo intervals are about ±0.3 m, against about ±0.03–0.09 m for LiDAR.
 
-Full record with timestamps: `docs/fix_loop.md`.
+## 6. Fix loop: video wall lengths (±3 %)
 
-**Failing number:** 0 of 10 video wall dimensions matched (9 overlapping partial rooms, 50.9 m² vs 78.8 m²).
+The one-page declaration is in `docs/fix_loop_declaration.md`; the full timestamped log is in `docs/fix_loop.md`.
 
-**Root cause (revised twice):** the walkthrough is reconstructed in chunks; monocular metric scale varies 13–33 % between chunks. Attempt 1 (16-frame overlap + ICP of each chunk against everything placed): prediction 5 ± 1 rooms, 67–91 m² — got 3 rooms, 31.6 m². Attempt 2 (each chunk measured on its own scale, placed by the chain): prediction ≥ 4 rooms recovered, 55–90 m² — got 57.9 m² but 7 partial rooms (a 30 s chunk sees only part of a room). Attempt 3 (one DA3 pass over the whole video): 1 room, 3.8 m² — 63 m of walking collapsed into 2.3 × 3.4 m; sparse frames break correspondence across similar rooms.
+**Worst gate:** 0/10 video dimensions matched. Every prediction below was written before its result.
 
-**Why it fell short:** dense chunks keep correspondence but not a shared scale; long passes keep a scale but lose correspondence. The fix this points to is a scale reference shared across the walk (phone odometry, which a plain video file does not carry) or a multi-view model with long-range memory. ⏳ re-recorded slow video.
+| Attempt | Predicted | Got |
+|---|---|---|
+| Stronger chunk joins (ICP) | 5 ± 1 rooms, 67–91 m² | 3 rooms, 31.6 m² |
+| Each chunk measured on its own | ≥ 4 rooms, 55–90 m² | 7 partial rooms, 57.9 m² |
+| One DA3 pass | 4–6 rooms | 1 room, 3.8 m² |
+| Room mode (shipped) | 3–6 partial rooms, gate stays failing | 5 partial rooms, overlaps 7 → 0, ceilings ~18 % low |
 
-## 7. Head-to-head (LiDAR vs Polycam)
+Video ceilings came out ~18 % low on two different clips (2.32–2.45 m vs 2.89–2.94 m tape): a systematic scale bias that a per-tier scale factor could remove, but fitting it on two captures would be overfitting, so it is reported, not applied. The **final diagnosis** is that monocular metric scale is consistent only within one set of views, and that set must show the whole room. The shipped room mode applies the photo-tier method to video segments and is about 3× faster. The gate did not pass.
 
-Polycam (floor-plan export of the same flat) vs our blind LiDAR run, against tape: we beat or tie on **11 of 12** shared dimensions (92 %; tie = within 5 mm). Polycam reports to 0.1 m; its bedroom ceilings read 3.0 m against 2.89–2.94 m. Our one loss is Bedroom 3's width, where our outline follows a wardrobe front (+15.6 cm) — a known failure mode below. Table: `bench/reports/lidar_flat/lidar_flat.md`.
+The structural fix is a scale reference shared across the whole walk, such as phone odometry, which a plain video file does not carry.
 
-## 8. Known failure modes
+## 7. Head-to-head (LiDAR versus Polycam)
 
-- **Furniture against walls** (LiDAR, all tiers): a wardrobe front can be taken as the wall (Room_1 width +15.6 cm).
-- **Photo tier stitching:** rooms are placed by matching doors seen from both sides; when doors are not photographed square-on, rooms are reported unconnected (QC warning `fragments_unconnected`). ⏳
-- **Photo hall:** photos that look into adjacent spaces enlarge the room (hall 55.8 m² vs 36 m²); the protocol now says to stay inside the room.
-- **Video tier:** scale drift between chunks (§6).
-- **Mirrors and glass:** mirror-labelled voxels are excluded from structure; glass gives no depth (LiDAR) or plausible-but-wrong depth (DA3) — windows are found from labels plus see-through rays.
-- **Low light:** QC flags dark frames (median brightness < 50) and fast motion; blurry frames keep their depth but are excluded from RGB steps.
-- **Runtime on CPU:** LiDAR ~6 min cold; photos ~20 min; video ~45 min (DA3 on CPU) — 20–50× faster on a GPU. A faster photo setting (DA3 at 392 px, metric scale from 2 photos per room) was measured and rejected: 15 min, but walls 1/7 in gate (median 12 %) and the metric scale ~15 % low.
+Polycam's floor-plan export of the same flat was compared with our blind LiDAR run, against tape. We beat or tie on **11 of 12** shared dimensions (92 %), where a tie means within 5 mm.
+
+- Polycam reports dimensions only to 0.1 m.
+- Its bedroom ceilings read 3.0 m against 2.89–2.94 m.
+- Our one loss is Room_1's width, where our outline follows a wardrobe front (+15.6 cm).
+
+## 8. Repeatability, damage, known failure modes
+
+- **Repeatability: not repeatable.** Room_3 was captured twice at the photo tier. Width agreed within 2.6 cm, but length (3.92 m against 4.48 m) and ceiling (2.74 m against 3.15 m) moved with the metric scale, by about 8–15 %. That is within the ±8 % intervals but fails the 1 cm gate. At the LiDAR tier, a pose-perturbation proxy shows outline instability; this is the same weakness as in §4.
+- **Damage: not met.** One class was staged (a coffee stain, 24 × 18 cm, on paper) and it was not detected. A stain on a taped sheet resembles the decoy prompts ("a poster") that suppress false positives. The second class was not staged.
+- **Photo stitching: fails.** Rooms are placed by matching a door seen from both sides, and the benchmark photos never show a doorway fully from both sides. The rooms are measured and reported unconnected.
+- **Furniture against walls:** a wardrobe front can be taken as the wall.
+- **Stepped ceilings:** the photo tier picks the higher central level (hall 2.72 m), while the tape and LiDAR read the lowered border (2.50 m and 2.48 m).
+- **Mirrors and glass:** mirror-labelled voxels are excluded from structure. Glass gives no LiDAR depth and plausible-but-wrong DA3 depth, so windows are detected from labels plus rays that pass through.
+- **Low light:** QC flags dark frames and fast motion. Blurry frames keep their depth but are excluded from RGB steps.
+- **Runtime on CPU:** LiDAR about 6 min, photos 22–27 min, video about 25 min. A tested faster photo setting was rejected because walls in gate fell from 7/7 to 1/7. A GPU makes the photo and video tiers take a few minutes.
 
 ## 9. Reproduction
 
-`README.md` ⏳: install, `python scripts/fetch_weights.py`, `scan run`, `scan bench`, `scan calibrate`. Every reported number regenerates from `data/raw/benchmark` with the commands in `bench/README` ⏳. Model outputs are cached per capture and replay deterministically; the live path runs without the cache.
+`README.md` covers install, the DA3 pinned install, `scripts/fetch_weights.py`, then `scan run`, `scan bench`, `scan calibrate` and `scripts/make_bench_report.py`. The blind LiDAR run is frozen in `bench/runs/blind_v1`.
+
+DA3 outputs are cached per capture, and the live path returns exactly what the cache replays (float16), so cold and cached runs agree.

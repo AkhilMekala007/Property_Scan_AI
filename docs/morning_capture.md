@@ -27,8 +27,9 @@ If the iPhone 17 Pro is still available: also scan Room_2 twice with Stray Scann
 
 ## 3. Video (5 min) → `Downloads/video_v2/`
 
-One walkthrough, **slowly**: one step per second, slow turns (5 s per quarter turn), tilt up to the
-ceiling and down to the floor in every room, pause 2 s in each doorway. 4–6 minutes for the flat.
+One walkthrough, **slowly**, **1× lens**: through the middle of each room (2 m+ from the wall you film),
+phone tilted slightly down so the floor-wall line stays in the lower third, slow turns (5 s per quarter
+turn), pause 2 s in each doorway, no people in the picture. 4–5 minutes for the flat.
 1080p 30 fps, "Most Compatible" format.
 
 ## 4. Tape measurements (15 min) → write in a note, send as text
