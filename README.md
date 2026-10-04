@@ -8,13 +8,24 @@ Three input tiers, one output contract:
 
 | Tier | Input | Hardware |
 |------|-------|----------|
-| Photos | 2–8 stills per room, one folder per room | Any iPhone 15+ |
+| Photos | 6–8 stills per room (brief: 2–8), 1× lens, landscape, one folder per room | Any iPhone 15+ |
 | Video | Handheld walkthrough clip | Any iPhone 15+ |
 | LiDAR | Depth + poses + intrinsics | Pro-class iPhones |
 
 Design: [docs/HLD.md](docs/HLD.md) · [visual overview](docs/HLD_visual.html) · LLDs in [docs/LLD](docs/LLD) ·
 [technical report](docs/technical_report.md) · [compliance matrix](docs/compliance_matrix.md) ·
 capture: [protocol](docs/capture_protocol.md), [device matrix](docs/device_matrix.md).
+
+## Results on our benchmark (3BHK flat, tape ground truth)
+
+| Tier | Walls | Ceilings | Notes |
+|---|---|---|---|
+| LiDAR (iPhone 17 Pro) | median error 0.5 %, 4/7 in 1 cm / 0.5 % | 3/4 in 1.5 cm | beats or ties Polycam on 11/12 dimensions |
+| Photos (iPhone 15) | **7/7 in ±8 %**, median 0.9 % | 3/4 | rooms measured; whole-property stitch fails (unconnected) |
+| Video (iPhone 15) | fails ±3 % | — | documented fix loop: `docs/fix_loop_declaration.md` |
+
+Full tables: [bench/REPORT.md](bench/REPORT.md) (generated from data). Gate-by-gate status:
+[docs/compliance_matrix.md](docs/compliance_matrix.md).
 
 ## Setup
 
