@@ -490,6 +490,9 @@ def photo_fragments(room_dirs: dict[str, Path], capture_id: str, cache_root: Pat
         info = photo_info(paths[0])
         if meta.device_model is None:
             meta.device_model = device or info.model
+        if info.focal_px and 2 * np.degrees(np.arctan(info.width / 2 / info.focal_px)) > 90:
+            meta.warn(f"{room}: photos taken with the ultra-wide (0.5x) lens; DA3 misjudges its focal length, so "
+                      "sizes may be under-measured by up to ~11 % (protocol: use the 1x lens)")
         cache = cache_root / capture_id / "photo" / room
         img_dir = cache / "images"
         img_dir.mkdir(parents=True, exist_ok=True)
@@ -571,6 +574,15 @@ def run_fragment(frag: Fragment, keep_largest: bool) -> FragmentRun | None:
         res.openings = find_openings(res.model, res.layout, res.rooms, res.labelled)
     except Exception as exc:  # a fragment too small to give a room must not stop the capture
         frag.note += f"; no room ({type(exc).__name__}: {exc})"
+        try:
+            from scan.qc import run_qc
+
+            cov = run_qc(frag.frameset).report.coverage
+            if not cov.floor_seen:
+                frag.note += (f"; the photos show only {cov.floor_area_m2 or 0:.1f} m2 of floor: retake from the "
+                              "corners, across the room, with the floor along the far wall in view")
+        except Exception:
+            pass
         return None
     rooms = [r for r in res.rooms if r.floor_area_m2 >= 1.0]
     if not rooms:
@@ -958,4 +970,7 @@ def run_capture(meta: CaptureMeta, fragments: list[Fragment], damage: bool = Tru
         log = place_fragments(runs)
     if dropped:
         log.append(f"no room from: {', '.join(dropped)}")
+        for f in fragments:
+            if f.name in dropped:
+                meta.warn(f"{f.name}: {f.note.lstrip('; ')}")
     return assemble(meta, runs, log, damage)

@@ -67,3 +67,19 @@ DA3 is installed from GitHub at a pinned commit (`--no-deps`; its API module imp
 The fast setting's metric scale came out ~15 % low (ceilings ~2.4 m vs 2.9 m tape) and Room_2 was lost.
 The brief sets no pipeline runtime limit (its 15 minutes is README-to-running on a clean machine), so
 accuracy wins; a GPU would make the shipped setting run in a few minutes.
+
+## Lens: 1× vs 0.5× (measured 2026-10-04)
+
+DA3-BASE's focal-length estimate vs EXIF: 1× main camera 6–12 % high and consistent across rooms;
+0.5× ultra-wide 18–43 % high and inconsistent across rooms on the same lens. The metric scale
+(DA3METRIC: metres = focal × output / 300) inherits it: ultra-wide rooms measured up to 11 % small
+(Room_2: −10.7 % / −11.1 % walls, −9.7 % ceiling) while the 1× Room_3 stayed within 2 %. The first
+photo set's hall (ultra-wide, focal 60 % high) is also the one room that failed. Protocol: 1× lens.
+
+## Framing (measured 2026-10-04, third photo set)
+
+1× photos taken walking along the walls (protocol revision 2) frame single walls from ~1 m: Room_1's 7
+photos show 1.0 m² of floor, so no floor plane is found and no room is built (Room_2 likewise; hall
+10.7 m² of 36). The first set — taken from corners and the doorway, across the room, 1× — measured 4
+rooms within 1–3 %. Protocol revision 3: 1× lens, shoot across the room from the corners and the
+doorway, floor along the far wall and ceiling line in every photo.

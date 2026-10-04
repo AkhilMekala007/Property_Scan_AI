@@ -34,26 +34,11 @@ Time: about **1 minute per room**. A 3BHK takes 5–8 minutes.
 
 ## How to take photos (photo tier)
 
-For each room, **6–8 photos** (never more than 8), landscape, phone at chest height, **0.5× (ultra-wide) lens**:
+For each room, **6–8 photos** (never more than 8), landscape, phone at chest height, **1× lens** (the normal camera, not 0.5×):
 
-1. **Walk the room, don't stand still.** Take a photo, take **one or two steps sideways** along the wall, turn slightly, take the next. Each photo should **share about half its view** with the previous one. (Photos taken by only turning on one spot give no depth between them.)
-2. **Every wall in at least two photos, from two different places**, with the **floor line and the ceiling line** visible.
-3. **The door, square-on, from inside the room:** stand facing it, 2–3 m away, the whole door frame from floor to above the top in the photo. Do this in **every** room, including the hall side of each bedroom door. Rooms are joined on the plan by matching these doors.
-4. **One room per folder, and stay in it.** Don't photograph through an open doorway into the next space; if the hall and lobby run together, photograph them as two folders split at a natural boundary.
+1. **Shoot across the room, from its edges.** Stand in a **corner** (back to the walls) and photograph the opposite side of the room. Every photo must show the **floor along the far wall** and the **ceiling line** — if you see only wall, step back.
+2. **Positions:** each of the **four corners** and the **doorway**. From each spot take 1–2 photos (turn about 45° between them) so neighbouring photos overlap.
+3. **The door, square-on from inside the room**, 2–3 m away, the whole frame from floor to above its top. Do this in **every** room, including the hall side of each bedroom door: rooms are joined on the plan by matching these doors.
+4. **One room per folder, and stay in it.** Don't photograph through an open doorway into the next space.
 5. Avoid people in frame, mirrors face-on, and photos aimed only at a window.
 
-## Hand the files over
-
-**LiDAR (Stray Scanner):** connect the iPhone to the laptop with a USB cable → open the **Apple Devices** app (Windows) or Finder (Mac) → *Files* → **Stray Scanner** → drag the scan folder out. *Fallback:* in the app, open the scan → share → save to Google Drive → download.
-
-**Video:** AirDrop / USB / Google Drive — copy the **one** video file into an empty folder.
-
-**Photos:** one folder per room, named after the room — `kitchen/`, `bedroom1/`, `hall/` — all inside one folder for the property.
-
-## Run
-
-```bash
-scan run <folder> --device "iPhone 17 Pro"
-```
-
-One command; the tier is detected from the files. Results: `outputs/<capture>/result.json` and `plan.png`. Total time on the reference laptop: 2–4 minutes for a LiDAR scan.

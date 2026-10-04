@@ -28,6 +28,8 @@ rooms:
 mapping:
   lidar_flat: {room_1: room_4, room_2: room_2, room_3: room_3, kitchen: room_5, hall: room_1}
   photos_flat: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
+  photos_v2: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
+  photos_v3: {room_1: room_1, room_2: room_2, room_3: room_3, kitchen: kitchen, hall: hall}
   video_flat: {}   # empty on purpose: the video tier's rooms are partial (per-chunk views, 9 overlaps) and none
                    # can be identified with a tape-measured room without judgement, so every item counts as missed
 

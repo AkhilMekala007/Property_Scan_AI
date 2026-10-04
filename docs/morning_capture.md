@@ -13,7 +13,7 @@ The brief needs one furnished room with staged damage of **two classes**. In Roo
 ## 1. Photos, every room (15 min) → `Downloads/photos_v2/<room>/`
 
 Follow `docs/capture_protocol.md` exactly — it is what the testers will follow:
-- **6–8 photos per room, never more than 8**, landscape, 0.5× lens, chest height.
+- **6–8 photos per room, never more than 8**, landscape, **1× lens (not 0.5×)**, chest height.
 - Walk along the walls, 1–2 steps between photos, each photo sharing ~half its view with the previous one.
 - Every wall in two photos from different spots, floor and ceiling lines visible.
 - The door **square-on from inside the room**, whole frame in view — every room, incl. the hall side of each bedroom door.
