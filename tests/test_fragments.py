@@ -79,3 +79,15 @@ def test_join_chunks_recovers_similarity():
     for i in range(12):
         assert np.allclose(poses[i], true[i], atol=1e-6), i
     assert abs(scales[11] - 0.4) < 1e-6 and scales[0] == 1.0
+
+
+def test_door_height_scale_and_rescale():
+    from scan.fragments import DOOR_HEIGHT_PRIOR_M, door_height_scale
+
+    def door(h, head=True, kind="door"):
+        return SimpleNamespace(kind=kind, height_m=h, head_observed=head)
+
+    h, f = door_height_scale([door(1.70), door(1.74), door(2.4, head=False), door(1.0, kind="window")])
+    assert abs(h - 1.72) < 1e-9 and abs(f - DOOR_HEIGHT_PRIOR_M / 1.72) < 1e-9
+    assert door_height_scale([door(0.5)]) == (None, None)  # implausible even after a 40 % scale error
+    assert door_height_scale([]) == (None, None)

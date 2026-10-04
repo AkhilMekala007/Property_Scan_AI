@@ -41,7 +41,7 @@ pip install --no-deps --ignore-requires-python "git+https://github.com/ByteDance
 python scripts/fetch_weights.py   # one-time model download (~2.3 GB); the pipeline itself runs offline
 ```
 
-About 10 minutes on a 50 Mbit/s connection, most of it the weight download.
+Measured on a clean machine (fresh clone, new environment, home connection): **about 25 min of setup** — 16.5 min `pip install` (torch, open3d, transformers, no cache), 1.5 min for the package and DA3, 6.6 min for the 2.3 GB of weights — then **6 min for the first photo room**, cold. Almost all of it is download time; on a faster connection or with a local wheel cache (`pip download -r requirements.txt -d wheels`, then `pip install --no-index --find-links wheels -r requirements.txt`) setup is much shorter.
 
 Models (weights in `weights/`, never committed; every `result.json` lists the ones it used):
 
@@ -172,6 +172,17 @@ pytest -m sample    # also load the provided sample captures (slow, needs the da
 ```
 
 ## Benchmark data (privacy)
+
+**Download:** [property_scan_benchmark_v1.zip](https://github.com/AkhilMekala007/Property_Scan_AI/releases/download/benchmark-v1/property_scan_benchmark_v1.zip)
+(1.13 GB, GitHub release `benchmark-v1`; SHA-256 `a1285ec78c422ae151ca65510cd4c2e130800314b9cad2f7a85e84ecbb71e7ca` — check with `certutil -hashfile property_scan_benchmark_v1.zip SHA256` on Windows or `sha256sum` elsewhere). The data is kept out of git on purpose (the repo stays small); unzip so the captures sit in `data/raw/benchmark/`:
+
+```bash
+python -c "import zipfile; zipfile.ZipFile('property_scan_benchmark_v1.zip').extractall('data/tmp')"
+```
+then move `data/tmp/benchmark/*` to `data/raw/benchmark/`. Contents: the 3BHK LiDAR scan (Stray Scanner),
+the iPhone 15 videos and photo sets used in `bench/REPORT.md`, the repeat-room and staged-damage photos,
+Polycam's floor-plan export, the tape ground truth and the redaction log.
+
 
 Raw captures stay in `data/raw/` (never committed). `python scripts/redact_release.py` builds a publishable
 copy in `data/release/`: GPS fields in photo EXIF zeroed in place (pixels verified identical, so every

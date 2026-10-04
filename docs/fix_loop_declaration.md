@@ -38,8 +38,8 @@ room mode on `video_flat` — gate stays failing, 3–6 mostly partial rooms (**
 
 ## 4. Outcome
 
-The gate **did not move to pass**. Same clip, before → after: overlapping room pairs 7 → 0, net area 50.9 → 34.1 m², matched dimensions 0 → 0; ceilings ~18 % low where seen (a systematic scale bias). On the best capture (`video_v3`, through room centres), room mode
-measured Room_1 at −9 % / −39 % with ceilings ~18 % low; other bedrooms gave no room. The video tier ships
+The gate **did not move to pass**. Same clip, before → after: overlapping room pairs 7 → 0, net area 50.9 → 34.1 m², matched dimensions 0 → 0; hall-segment ceilings 2–7 % below the hall's tape height. On the best capture (`video_v3`, through room centres), room mode
+measured Room_1 at −9 % / −39 %; other bedrooms gave no room; hall-segment ceilings were 2–7 % low. Attempt 5 (door-height scale prior) triggered in only 2 of ~9 segments and moved one hall ceiling from −5.3 % to −2.6 %; it also corrected an earlier misreading (an apparent 18 % ceiling bias compared hall segments with bedroom ceilings). The video failure is partial and missing rooms, not scale. The video tier ships
 with this documented failure: valid JSON, wide uncalibrated intervals, QC warnings naming the cause
 (portrait, scale spread, rooms not measured). The structural fix the diagnosis points to is a scale
 reference shared across the walkthrough — the phone's own motion tracking (absent from a plain video file)

@@ -29,7 +29,9 @@ class TierBudget:
 BUDGETS = {
     "lidar": TierBudget(0.010, 0.003, 0.007, 0.010, 0.015, 0.020, 0.15, 0.05),
     # placeholders until the video / photo tiers exist; the gates allow +-3 % and +-8 %
-    "video": TierBudget(0.03, 0.015, 0.03, 0.04, 0.04, 0.05, 0.25, 0.10),
+    # video scale comes from a model, corrected by a door-height prior (2.07 +- 0.07 m, ~3.5 %) where a door
+    # is seen: proportional terms carry that uncertainty
+    "video": TierBudget(0.03, 0.04, 0.05, 0.10, 0.05, 0.08, 0.30, 0.12),
     "photo": TierBudget(0.06, 0.04, 0.06, 0.08, 0.08, 0.10, 0.35, 0.15),
 }
 

@@ -595,23 +595,69 @@ class FragmentRun:
     how: str = ""
 
 
-def run_fragment(frag: Fragment, keep_largest: bool) -> FragmentRun | None:
+DOOR_HEIGHT_PRIOR_M = 2.07  # standard interior door (clear opening to the head), +-0.07 m
+DOOR_SCALE_LIMITS = (0.7, 1.4)
+
+
+def _measure_fragment(frameset: FrameSet, frag: Fragment):
+    from scan.openings import find_openings
     from scan.pipeline import run_pipeline
 
-    from scan.openings import find_openings
+    res = run_pipeline(frameset, upto="measure", drift=False)
+    attached = attach_wall_planes(res.rooms, res.model, res.layout.floor_map.frame)
+    res.openings = find_openings(res.model, res.layout, res.rooms, res.labelled)
+    extra = door_candidates(res.model, res.rooms, res.openings)
+    for k, o in enumerate(extra):
+        o.id = len(res.openings) + k
+    res.openings += extra
+    return res, attached, len(extra)
 
+
+def door_height_scale(openings) -> tuple[float | None, float | None]:
+    """(measured door height, scale factor) from a room's detected doors, or (None, None).
+
+    Only doors whose head was observed and whose height is plausible after a scale error of up to
+    +-40 % count; the median is used.
+    """
+    hs = [o.height_m for o in openings if o.kind == "door" and o.head_observed
+          and DOOR_HEIGHT_PRIOR_M / DOOR_SCALE_LIMITS[1] <= o.height_m <= DOOR_HEIGHT_PRIOR_M / DOOR_SCALE_LIMITS[0]]
+    if not hs:
+        return None, None
+    h = float(np.median(hs))
+    return h, float(np.clip(DOOR_HEIGHT_PRIOR_M / h, *DOOR_SCALE_LIMITS))
+
+
+def _rescaled(frameset: FrameSet, f: float) -> FrameSet:
+    """The same frames with camera positions and depth multiplied by ``f``."""
+    frames = []
+    for fr in frameset.frames:
+        T = fr.T_world_cam.copy()
+        T[:3, 3] *= f
+        frames.append(replace(fr, T_world_cam=T, _depth=lambda fr=fr: fr.depth() * f,
+                              _depth_sigma=lambda fr=fr: fr.depth_sigma() * f))
+    return replace(frameset, frames=frames)
+
+
+def run_fragment(frag: Fragment, keep_largest: bool) -> FragmentRun | None:
     try:
-        res = run_pipeline(frag.frameset, upto="measure", drift=False)
-        attached = attach_wall_planes(res.rooms, res.model, res.layout.floor_map.frame)
+        res, attached, n_extra = _measure_fragment(frag.frameset, frag)
+        if frag.one_room and frag.frameset.meta.tier is Tier.VIDEO:
+            # video: the model's metric scale is biased (~18 % low on two clips); a detected door of
+            # known height fixes the scale for this room (docs/fix_loop.md, attempt 5)
+            h, f = door_height_scale(res.openings)
+            if f is None:
+                frag.note += "; no door with a visible head: model scale kept"
+            elif abs(f - 1) > 0.03:
+                frag.frameset = _rescaled(frag.frameset, f)
+                res, attached, n_extra = _measure_fragment(frag.frameset, frag)
+                frag.note += (f"; scale x{f:.3f} from door height ({h:.2f} m measured, "
+                              f"{DOOR_HEIGHT_PRIOR_M:.2f} m prior)")
+            else:
+                frag.note += f"; door height {h:.2f} m agrees with the prior: model scale kept"
         if attached:
             frag.note += f"; {attached} outline edge(s) linked to nearby wall planes"
-        res.openings = find_openings(res.model, res.layout, res.rooms, res.labelled)
-        extra = door_candidates(res.model, res.rooms, res.openings)
-        for k, o in enumerate(extra):
-            o.id = len(res.openings) + k
-        res.openings += extra
-        if extra:
-            frag.note += f"; {len(extra)} door(s) from door-labelled voxels"
+        if n_extra:
+            frag.note += f"; {n_extra} door(s) from door-labelled voxels"
     except Exception as exc:  # a fragment too small to give a room must not stop the capture
         frag.note += f"; no room ({type(exc).__name__}: {exc})"
         try:

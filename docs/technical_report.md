@@ -104,9 +104,10 @@ The one-page declaration is in `docs/fix_loop_declaration.md`; the full timestam
 | Stronger chunk joins (ICP) | 5 ± 1 rooms, 67–91 m² | 3 rooms, 31.6 m² |
 | Each chunk measured on its own | ≥ 4 rooms, 55–90 m² | 7 partial rooms, 57.9 m² |
 | One DA3 pass | 4–6 rooms | 1 room, 3.8 m² |
-| Room mode (shipped) | 3–6 partial rooms, gate stays failing | 5 partial rooms, overlaps 7 → 0, ceilings ~18 % low |
+| Room mode (shipped) | 3–6 partial rooms, gate stays failing | 5 partial rooms, overlaps 7 → 0 |
+| Door-height scale prior | ceilings within ±6 % where a door is seen | triggered in 2 of ~9 segments; hall ceiling −5.3 % → −2.6 % |
 
-Video ceilings came out ~18 % low on two different clips (2.32–2.45 m vs 2.89–2.94 m tape): a systematic scale bias that a per-tier scale factor could remove, but fitting it on two captures would be overfitting, so it is reported, not applied. The **final diagnosis** is that monocular metric scale is consistent only within one set of views, and that set must show the whole room. The shipped room mode applies the photo-tier method to video segments and is about 3× faster. The gate did not pass.
+Where a segment's room is known, video ceilings are 2–7 % from the tape (hall segments against the hall's 2.50 m); an earlier reading of an "18 % bias" compared hall segments with bedroom ceilings and was corrected. The **final diagnosis** is that monocular metric scale is consistent only within one set of views, and that set must show the whole room. The shipped room mode applies the photo-tier method to video segments and is about 3× faster. The gate did not pass.
 
 The structural fix is a scale reference shared across the whole walk, such as phone odometry, which a plain video file does not carry.
 
